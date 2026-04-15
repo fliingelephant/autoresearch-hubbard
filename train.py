@@ -53,16 +53,19 @@ MOMENTUM = 0.9
 # Logging cadence
 LOG_EVERY_VMC = 25
 
-MODEL_ID = "Slater+Jastrow"
+N_DETERMINANTS = 2
+MODEL_ID = f"MultiSlater(K={N_DETERMINANTS})+Jastrow"
 
 
-class SlaterJastrow(nn.Module):
+class MultiSlaterJastrow(nn.Module):
     hilbert: nk.hilbert.SpinOrbitalFermions
+    n_determinants: int = 2
 
     @nn.compact
     def __call__(self, x):
-        log_slater = nk.models.Slater2nd(
-            self.hilbert, generalized=False, restricted=False,
+        log_slater = nk.models.MultiSlater2nd(
+            self.hilbert, n_determinants=self.n_determinants,
+            generalized=False, restricted=False,
             param_dtype=jnp.complex128,
         )(x)
         log_jastrow = nk.models.Jastrow(param_dtype=jnp.complex128)(x)
@@ -123,7 +126,7 @@ def main() -> None:
         hilbert, graph=graph, n_chains=N_CHAINS, sweep_size=SWEEP_SIZE, spin_symmetric=True,
     )
 
-    model = SlaterJastrow(hilbert)
+    model = MultiSlaterJastrow(hilbert, n_determinants=N_DETERMINANTS)
     state = nk.vqs.MCState(
         sampler, model, n_samples=N_SAMPLES, seed=SEED, sampler_seed=SEED,
     )

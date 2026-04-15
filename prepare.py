@@ -6,6 +6,19 @@ The single source of truth for all pinned values is ``frozen-manifest.toml``.
 Do not modify this file directly; modify the manifest under human review.
 """
 
+import os
+
+# Shared perf plumbing pinned here — does not affect numerical results,
+# only wall-clock. Numerical precision (x64 vs x32) is a trial knob and
+# lives in train.py.
+os.environ.setdefault("JAX_COMPILATION_CACHE_DIR", "jax_cache")
+os.environ.setdefault("JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS", "0")
+os.environ.setdefault("JAX_PERSISTENT_CACHE_MIN_ENTRY_SIZE_BYTES", "-1")
+os.environ.setdefault("JAX_PERSISTENT_CACHE_ENABLE_XLA_CACHES", "all")
+_xla_flags = os.environ.get("XLA_FLAGS", "")
+if "xla_gpu_force_compilation_parallelism" not in _xla_flags:
+    os.environ["XLA_FLAGS"] = f"{_xla_flags} --xla_gpu_force_compilation_parallelism=16".strip()
+
 import hashlib
 import tomllib
 from pathlib import Path

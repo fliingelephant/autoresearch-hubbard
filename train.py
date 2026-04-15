@@ -42,6 +42,11 @@ from autoresearch_hubbard.pretrain import supervised_pretrain_step
 
 SEED = 0
 
+# Numerical precision. Agent-tunable: flip to False + float32 for cheaper runs
+# if the ansatz still converges; keep x64 for the paper-faithful baseline.
+jax.config.update("jax_enable_x64", True)
+DTYPE = jnp.float64
+
 # Phase budget fractions of TRIAL_SECONDS (SPRING gets the remainder).
 NNB_FRACTION = 0.2
 PRETRAIN_FRACTION = 0.1
@@ -185,7 +190,7 @@ def main() -> None:
 
     # Phase 1: NNB warm-start (paper supplementary §2).
     print("=== Phase 1: NNB warm-start ===", flush=True)
-    nnb = NNB(hilbert, hidden_dim=NNB_HIDDEN_DIM)
+    nnb = NNB(hilbert, hidden_dim=NNB_HIDDEN_DIM, param_dtype=DTYPE)
     nnb_state = nk.vqs.MCState(
         sampler, nnb, n_samples=N_SAMPLES, seed=SEED, sampler_seed=SEED
     )
@@ -203,14 +208,14 @@ def main() -> None:
     # Phase 2: supervised pretraining of the SiT orbitals against the NNB ansatz.
     print("=== Phase 2: supervised pretraining ===", flush=True)
     samples = nnb_state.sample(n_samples=PRETRAIN_SAMPLES, n_discard_per_chain=0)
-    pretrain_configs = samples.reshape((-1, samples.shape[-1])).astype(jnp.float32)
+    pretrain_configs = samples.reshape((-1, samples.shape[-1])).astype(DTYPE)
     pretrain_targets = nnb.apply(
         nnb_state.variables, pretrain_configs, method=nnb.backflow_orbitals
     )
 
     sit = SiTBackflow(
         hilbert, d_model=D_MODEL, n_heads=N_HEADS, n_layers=N_LAYERS,
-        n_determinants=N_DETERMINANTS,
+        n_determinants=N_DETERMINANTS, param_dtype=DTYPE,
     )
     sit_variables = sit.init(jax.random.PRNGKey(SEED + 1), pretrain_configs)
     sit_variables, pretrain_steps = run_pretraining_phase(

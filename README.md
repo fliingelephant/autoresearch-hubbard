@@ -9,19 +9,45 @@ while it mutates hyperparameters, the ansatz, or the training loop.
 Not a physics contribution. The baseline is a direct reproduction of
 Gu et al. 2025 (arXiv 2507.02644) at the smallest instance the paper covers.
 
+## Quick start
+
+From a cloned repo, open Claude Code:
+
+```bash
+cd Autoresearch-Hubbard
+claude   # or your agent of choice
+```
+
+In the session:
+
+```
+/setup
+/config set autoCompactThreshold 20
+```
+
+Then prompt:
+
+> Read program.md and start a new autoresearch experiment.
+
+`/setup` installs `uv` (if missing), detects CUDA via `nvidia-smi`, and runs
+`uv sync --extra cuda` or `uv sync --extra cpu` accordingly. The auto-compact
+threshold keeps a long iteration history before compaction kicks in.
+
+The agent takes over from `program.md`: proposes a branch tag
+(`autoresearch/<tag>`), initializes `results.tsv`, runs the baseline, then
+loops edit → commit → train → keep/discard until you Ctrl+C. Each iteration
+is ~5–10 min wall-clock. Per `program.md`'s `NEVER STOP` rule, the agent
+will not pause to ask — you are the kill switch.
+
 ## What the experiment does
 
-- **Fixed instance**: 4×4 square lattice, open boundary conditions, half-filled
-  (N↑ = N↓ = 8), U = 8, t = 1, t' = 0.
-- **Per-trial budget**: `TRIAL_SECONDS = 300` of wall-clock training.
-- **Metric**: `final_energy` — the variational expectation ⟨ψ|H|ψ⟩ at end of
-  trial. Lower is better. Extracted from stdout via `grep "^final_energy:"`.
-- **Baseline pipeline** (`train.py`): NNB warm-start → supervised orbital
-  pretraining → SPRING stochastic reconfiguration with a transformer-backflow
-  ansatz (SiT, K-determinant head).
-- **Loop** (`program.md`): agent edits editable files, commits, runs, keeps
-  commits that lower `final_energy`, reverts otherwise. Logs every attempt
-  (including crashes) to `results.tsv`.
+- **System**: 4×4 square lattice, OBC, half-filled (N↑=N↓=8), U=8, t=1, t'=0.
+- **Budget**: `TRIAL_SECONDS = 300` wall-clock training per trial (JIT excluded).
+- **Metric**: `final_energy` — `⟨ψ|H|ψ⟩/⟨ψ|ψ⟩` at end of trial. Lower is better.
+- **Baseline** (`train.py`): NNB warm-start → supervised orbital pretraining →
+  SPRING SR with a transformer-backflow ansatz (SiT, K-determinant head).
+- **Loop** (`program.md`): edit → commit → run → keep if `final_energy` dropped
+  else `git reset --hard HEAD~1`. All attempts logged to `results.tsv`.
 
 ## File map
 
@@ -47,43 +73,8 @@ Editable (agent mutates freely):
 Operational:
 
 - `program.md` — the agent's runbook (setup, loop, logging, keep/discard).
-- `references/autoresearch/` — upstream Karpathy repo pinned as a submodule.
-
-## Quick start
-
-Install deps and open Claude Code in the repo:
-
-```bash
-uv sync
-git submodule update --init --recursive
-cd Autoresearch-Hubbard
-claude   # or your agent of choice
-```
-
-In the session, raise the auto-compact threshold so the agent keeps long
-iteration history before compaction kicks in:
-
-```
-/config set autoCompactThreshold 20
-```
-
-Then prompt:
-
-> Read program.md and start a new autoresearch experiment.
-
-The agent will propose a branch tag (`autoresearch/<date>`), set up
-`results.tsv`, run the baseline, then iterate edit → commit → train →
-keep/discard until you stop it. Each iteration is ~5–10 min wall-clock
-(300 s training + JIT compile + parse). At 20% auto-compact you'll fit
-roughly 8–30 hours of continuous iteration before the conversation gets
-summarized; the agent's working memory survives compaction by re-reading
-`results.tsv` and `git log` from disk.
-
-To stop: Ctrl+C or close the session. To resume on the same branch in a
-fresh session: prompt `Resume autoresearch on autoresearch/<tag>`.
-
-Per `program.md`'s `NEVER STOP` rule, the agent will not pause to ask
-whether to continue. You are the kill switch.
+- `references/autoresearch/` — upstream Karpathy repo as a submodule
+  (reference reading; populate with `git submodule update --init` if needed).
 
 ## Enforcement model
 
@@ -109,7 +100,9 @@ Branch rules on `main`:
 Phases beyond the current one (6×6, PBC, doped, t' ≠ 0) require a deliberate
 update:
 
-1. Edit `frozen-manifest.toml` (file hashes, constants, probe value).
-2. Recompute `sha256(frozen-manifest.toml)`.
-3. Rotate the `FROZEN_MANIFEST_SHA` repo secret.
+1. Edit the relevant frozen file(s) — `prepare.py`, `hamiltonian.py`,
+   `test_hamiltonian.py`, or the physics constants inside `frozen-manifest.toml`.
+2. Run `/rehash` — updates the `[hashes]` block in the manifest and prints the
+   new `FROZEN_MANIFEST_SHA` along with the exact `gh secret set` command.
+3. Rotate the `FROZEN_MANIFEST_SHA` repo secret as instructed.
 4. Land all of the above through a reviewed PR.

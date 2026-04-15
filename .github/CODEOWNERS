@@ -1,0 +1,8 @@
+# Frozen physics surface — changes require human sign-off.
+/frozen-manifest.toml                            @fliingelephant
+/prepare.py                                      @fliingelephant
+/src/autoresearch_hubbard/hamiltonian.py         @fliingelephant
+/tests/test_hamiltonian.py                       @fliingelephant
+
+# Enforcement infrastructure — must not be silently edited.
+/.github/                                        @fliingelephant

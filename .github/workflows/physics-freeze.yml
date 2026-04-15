@@ -1,0 +1,38 @@
+name: physics-freeze
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Manifest hash must match repo secret
+        env:
+          EXPECTED: ${{ secrets.FROZEN_MANIFEST_SHA }}
+        run: |
+          if [ -z "$EXPECTED" ]; then
+            echo "::error::FROZEN_MANIFEST_SHA secret is not set"; exit 1
+          fi
+          OBSERVED=$(sha256sum frozen-manifest.toml | cut -d' ' -f1)
+          if [ "$OBSERVED" != "$EXPECTED" ]; then
+            echo "::error::frozen-manifest.toml drift: $OBSERVED != $EXPECTED"
+            exit 1
+          fi
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        run: uv sync
+
+      - name: Run frozen-surface tripwire
+        run: uv run python -c "from prepare import verify_frozen_surface; verify_frozen_surface()"
+
+      - name: Run physics regression tests
+        run: uv run pytest tests/test_hamiltonian.py tests/test_train_contract.py -q

@@ -36,40 +36,54 @@ To set up a new experiment, work with the user to:
 
 ## Experimentation
 
-Each experiment runs for a fixed wall-clock training budget of **30 minutes**
-defined by `TRIAL_SECONDS` in `prepare.py`. Launch it as:
+Each experiment runs for a fixed wall-clock training budget of **5 minutes**
+(`TRIAL_SECONDS = 300` in `frozen-manifest.toml`). JIT compile time is
+excluded — see the warmup pattern in `train.py`. Launch it as:
 
 ```bash
 uv run train.py > run.log 2>&1
 ```
 
 **What you CAN do:**
-- Modify `train.py` — full pipeline: architecture wiring, optimizer, schedules, phase splits, logging cadence.
-- Modify `src/autoresearch_hubbard/ansatz/nnb.py` — NNB warm-start ansatz.
-- Modify `src/autoresearch_hubbard/ansatz/sit_backflow.py` — transformer backflow ansatz.
-- Modify `src/autoresearch_hubbard/pretrain.py` — supervised pretraining procedure.
+- Modify any non-frozen file. The fixed surface is the Hamiltonian and the
+  metric (`prepare.py`, `src/autoresearch_hubbard/hamiltonian.py`,
+  `frozen-manifest.toml`). Everything else — ansatz family, pretraining
+  target (or absence of one), optimizer, sampler, loop structure — is
+  mutable. You may add new files (e.g. an alternative ansatz module) as
+  long as `train.py` remains the entry point and prints the summary block.
 
 **What you CANNOT do:**
-- Modify `prepare.py` — fixed constants, Hamiltonian builder, metric rules.
+- Modify `prepare.py` — fixed constants, Hamiltonian builder, tripwire.
 - Modify `src/autoresearch_hubbard/hamiltonian.py` — the physics target.
 - Change the system: 4×4 square, OBC, U=8, t=1, t'=0, half-filling (N↑=N↓=8).
 - Install new dependencies.
-- Change `TRIAL_SECONDS` (hard-locked at 30 minutes).
+- Change `TRIAL_SECONDS` (hard-locked at 5 minutes).
 
-**Goal: lowest `final_energy`.** Time budget is fixed, so bigger is not always
-better — faster convergence often wins.
+**Goal: lowest `final_energy`** — the variational expectation
+⟨ψ|H|ψ⟩/⟨ψ|ψ⟩ at the end of the trial. Lower is better. Time budget is
+fixed, so bigger isn't always better — faster convergence often wins.
 
 **Simplicity criterion**: all else equal, simpler is better. A tiny improvement
 that adds ugly complexity is not worth it; removing code and getting equal or
 better results is a simplification win and always kept.
 
-**Paper-faithfulness is the starting point, not a constraint.** The default
-ansatz mirrors Gu et al. 2025 (no LayerNorm, SiLU FFN, K-determinant sum,
-real params feeding a complex head). If you deviate, justify it in the
-`results.tsv` description and keep only if `final_energy` drops. Good
-directions to explore (grounded in the paper or its references):
-MARCH optimizer (paper §3), alternative pretraining targets, different
-phase-budget schedules, wider/deeper transformer, more determinants.
+**The wavefunction class itself is fair game, not just hyperparameters.**
+Treat the task as "minimize the Rayleigh quotient over any parametric ψ
+that fits the budget", not "tune this transformer". The default mirrors
+Gu et al. 2025 (transformer-backflow, NNB warm-start, SPRING SR), but at
+4×4 with 16 sites, expressivity rarely beats step count — simpler families
+often win. If you deviate, justify in `results.tsv`; keep only if
+`final_energy` drops or the code shrinks materially. Directions worth
+trying:
+
+- **Other ansatz families** (often best at this scale): pure Slater
+  determinant (`nk.models.Slater2nd` — Hartree-Fock baseline, ~256 params),
+  Slater × Jastrow correlator, MLP-only backflow (drop attention), RBM
+  (`nk.models.RBM` — removes the orbital pretraining step entirely).
+- **Optimizer family**: plain SR (`momentum=None`), Min-SR (`use_ntk=True,
+  on_the_fly=True`), MARCH (paper §3 — implement locally), Adam-only.
+- **Within the transformer**: wider/deeper attention, more determinants,
+  alternative pretraining targets, different phase-budget schedules.
 
 **The first run**: establish the baseline by running the training script as is.
 
@@ -135,9 +149,9 @@ LOOP FOREVER:
 8. If `final_energy` improved (more negative), keep the commit and advance the branch.
 9. Otherwise, `git reset --hard HEAD~1` and try a different idea.
 
-**Timeout**: each experiment should take ~30 min training + a few seconds of
-startup / compilation. If a run exceeds 40 min wall-clock, kill it and treat
-as a failure.
+**Timeout**: each experiment should take ~5 min training + JIT compile
+(typically 30 s – 3 min depending on model size). If a run exceeds 15 min
+wall-clock, kill it and treat as a failure.
 
 **Crashes**: if a run crashes (NaN, OOM, bug), use judgment. Dumb typos get
 fixed and rerun. Fundamentally broken ideas are logged as `crash` and skipped.

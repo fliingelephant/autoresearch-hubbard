@@ -51,12 +51,39 @@ Operational:
 
 ## Quick start
 
+Install deps and open Claude Code in the repo:
+
 ```bash
 uv sync
 git submodule update --init --recursive
-uv run train.py > run.log 2>&1
-grep "^final_energy:" run.log
+cd Autoresearch-Hubbard
+claude   # or your agent of choice
 ```
+
+In the session, raise the auto-compact threshold so the agent keeps long
+iteration history before compaction kicks in:
+
+```
+/config set autoCompactThreshold 20
+```
+
+Then prompt:
+
+> Read program.md and start a new autoresearch experiment.
+
+The agent will propose a branch tag (`autoresearch/<date>`), set up
+`results.tsv`, run the baseline, then iterate edit → commit → train →
+keep/discard until you stop it. Each iteration is ~5–10 min wall-clock
+(300 s training + JIT compile + parse). At 20% auto-compact you'll fit
+roughly 8–30 hours of continuous iteration before the conversation gets
+summarized; the agent's working memory survives compaction by re-reading
+`results.tsv` and `git log` from disk.
+
+To stop: Ctrl+C or close the session. To resume on the same branch in a
+fresh session: prompt `Resume autoresearch on autoresearch/<tag>`.
+
+Per `program.md`'s `NEVER STOP` rule, the agent will not pause to ask
+whether to continue. You are the kill switch.
 
 ## Enforcement model
 
@@ -86,10 +113,3 @@ update:
 2. Recompute `sha256(frozen-manifest.toml)`.
 3. Rotate the `FROZEN_MANIFEST_SHA` repo secret.
 4. Land all of the above through a reviewed PR.
-
-## Development
-
-```bash
-uv run pytest tests/ -q        # 20 tests, includes tripwire regressions
-uv run python prepare.py       # print system info and run tripwire locally
-```

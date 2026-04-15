@@ -34,7 +34,7 @@ Then prompt:
 The agent takes over from `program.md`: proposes a branch tag
 (`autoresearch/<tag>`), initializes `results.tsv`, runs the baseline, then
 loops edit → commit → train → keep/discard until you Ctrl+C. Each iteration
-is ~5–10 min wall-clock. Per `program.md`'s `NEVER STOP` rule, the agent
+is ~10–15 min wall-clock. Per `program.md`'s `NEVER STOP` rule, the agent
 will not pause to ask — you are the kill switch.
 
 After (or during) a run, `/analyze` renders `progress.png` — a scatter of
@@ -61,7 +61,7 @@ so the loop can keep iterating through many more experiments.
 ## What the experiment does
 
 - **System**: 4×4 square lattice, OBC, half-filled (N↑=N↓=8), U=8, t=1, t'=0.
-- **Budget**: `TRIAL_SECONDS = 300` wall-clock training per trial (JIT excluded).
+- **Budget**: `TRIAL_SECONDS = 600` wall-clock training per trial (JIT excluded).
 - **Metric**: `final_energy` — `⟨ψ|H|ψ⟩/⟨ψ|ψ⟩` at end of trial. Lower is better.
 - **Baseline** (`train.py`): NNB warm-start → supervised orbital pretraining →
   SPRING SR with a transformer-backflow ansatz (SiT, K-determinant head).

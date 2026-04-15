@@ -36,8 +36,8 @@ To set up a new experiment, work with the user to:
 
 ## Experimentation
 
-Each experiment runs for a fixed wall-clock training budget of **5 minutes**
-(`TRIAL_SECONDS = 300` in `frozen-manifest.toml`). JIT compile time is
+Each experiment runs for a fixed wall-clock training budget of **10 minutes**
+(`TRIAL_SECONDS = 600` in `frozen-manifest.toml`). JIT compile time is
 excluded — see the warmup pattern in `train.py`. Launch it as:
 
 ```bash
@@ -57,7 +57,7 @@ uv run train.py > run.log 2>&1
 - Modify `src/autoresearch_hubbard/hamiltonian.py` — the physics target.
 - Change the system: 4×4 square, OBC, U=8, t=1, t'=0, half-filling (N↑=N↓=8).
 - Install new dependencies.
-- Change `TRIAL_SECONDS` (hard-locked at 5 minutes).
+- Change `TRIAL_SECONDS` (hard-locked at 10 minutes).
 
 **Goal: lowest `final_energy`** — the variational expectation
 ⟨ψ|H|ψ⟩/⟨ψ|ψ⟩ at the end of the trial. Lower is better. Time budget is
@@ -162,8 +162,8 @@ LOOP FOREVER:
 8. If `final_energy` improved (more negative), keep the commit and advance the branch.
 9. Otherwise, `git reset --hard HEAD~1` and try a different idea.
 
-**Timeout**: each experiment should take ~5 min training + JIT compile
-(typically 30 s – 3 min depending on model size). If a run exceeds 15 min
+**Timeout**: each experiment should take ~10 min training + JIT compile
+(typically 30 s – 3 min depending on model size). If a run exceeds 20 min
 wall-clock, kill it and treat as a failure.
 
 **Crashes**: if a run crashes (NaN, OOM, bug), use judgment. Dumb typos get

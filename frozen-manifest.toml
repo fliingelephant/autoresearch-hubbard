@@ -19,7 +19,7 @@
 
 [invariants]
 # Wall-clock training budget per trial (seconds).
-TRIAL_SECONDS = 300
+TRIAL_SECONDS = 600
 
 # Fixed system parameters.
 LATTICE_L   = 4        # 4x4 square lattice (16 sites)

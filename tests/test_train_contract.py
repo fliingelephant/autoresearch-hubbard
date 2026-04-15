@@ -61,7 +61,7 @@ def test_manifest_sha256_is_reproducible():
 def test_prepare_exports_fixed_constants():
     import prepare
 
-    assert prepare.TRIAL_SECONDS == 300
+    assert prepare.TRIAL_SECONDS == 600
     assert prepare.LATTICE_L == 4
     assert prepare.LATTICE_PBC is False
     assert prepare.U == 8.0

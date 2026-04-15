@@ -18,6 +18,20 @@ cd Autoresearch-Hubbard
 claude   # or your agent of choice
 ```
 
+For an unattended run on a server, launch with
+`claude --permission-mode bypassPermissions` so the agent doesn't stop on
+edit/bash prompts. Claude refuses bypass mode under `root` — on a fresh
+cloud GPU box, create a non-root user first (and reinstall `uv` / `claude`
+for them if they aren't on that user's `PATH`):
+
+```bash
+useradd -m -s /bin/bash agent
+chown -R agent:agent /workspace/autoresearch-hubbard
+su - agent
+cd /workspace/autoresearch-hubbard
+claude --permission-mode bypassPermissions
+```
+
 In the session:
 
 ```

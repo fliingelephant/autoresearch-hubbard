@@ -24,6 +24,7 @@ Extract the metric with:  grep "^final_energy:" run.log
 from __future__ import annotations
 
 import datetime
+import math
 import time
 
 import jax
@@ -78,10 +79,19 @@ LOG_EVERY_VMC = 10
 LOG_EVERY_PRETRAIN = 50
 
 
+class NaNError(RuntimeError):
+    """Raised when training diverges to NaN — let the loop log it as `crash`."""
+
+
+def _check_finite(value: float, phase: str, step: int, what: str) -> None:
+    if not math.isfinite(value):
+        raise NaNError(f"{phase} step {step}: {what}={value} (training diverged)")
+
+
 def run_vmc_phase(driver, seconds_budget: float, phase_name: str, log_every: int) -> list[float]:
     """Run VMC steps until the deadline. The first step (which includes JIT
     compile) runs as a warmup outside the timer, so the budget covers actual
-    training only."""
+    training only. Raises NaNError if energy goes non-finite."""
     trace: list[float] = []
     latest: dict[str, float] = {}
 
@@ -93,6 +103,7 @@ def run_vmc_phase(driver, seconds_budget: float, phase_name: str, log_every: int
 
     t_warm = time.perf_counter()
     driver.run(1, out=None, show_progress=False, callback=capture)
+    _check_finite(latest["energy"], phase_name, 1, "energy")
     trace.append(latest["energy"])
     print(
         f"{phase_name} step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): "
@@ -104,8 +115,9 @@ def run_vmc_phase(driver, seconds_budget: float, phase_name: str, log_every: int
     step = 1
     while time.perf_counter() < deadline:
         driver.run(1, out=None, show_progress=False, callback=capture)
-        trace.append(latest["energy"])
         step += 1
+        _check_finite(latest["energy"], phase_name, step, "energy")
+        trace.append(latest["energy"])
         if step % log_every == 0:
             print(
                 f"{phase_name} step {step}: energy={latest['energy']:.6f} variance={latest['variance']:.4f}",
@@ -124,7 +136,7 @@ def run_pretraining_phase(
     log_every: int,
 ):
     """Pretrain orbitals until the deadline. First step warmup absorbs JIT
-    compile outside the timer."""
+    compile outside the timer. Raises NaNError if loss goes non-finite."""
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
 
@@ -132,8 +144,10 @@ def run_pretraining_phase(
     params, opt_state, loss = supervised_pretrain_step(
         params, model, configs, targets, optimizer=optimizer, opt_state=opt_state,
     )
+    loss_val = float(loss)
+    _check_finite(loss_val, "pretrain", 1, "loss")
     print(
-        f"pretrain step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): loss={float(loss):.6f}",
+        f"pretrain step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): loss={loss_val:.6f}",
         flush=True,
     )
 
@@ -146,7 +160,9 @@ def run_pretraining_phase(
         )
         step += 1
         if step % log_every == 0:
-            print(f"pretrain step {step}: loss={float(loss):.6f}", flush=True)
+            loss_val = float(loss)
+            _check_finite(loss_val, "pretrain", step, "loss")
+            print(f"pretrain step {step}: loss={loss_val:.6f}", flush=True)
     return params, step
 
 

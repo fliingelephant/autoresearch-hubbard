@@ -27,6 +27,7 @@ import datetime
 import math
 import time
 
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import netket as nk
@@ -52,7 +53,20 @@ MOMENTUM = 0.9
 # Logging cadence
 LOG_EVERY_VMC = 25
 
-MODEL_ID = "Slater(unrestricted)"
+MODEL_ID = "Slater+Jastrow"
+
+
+class SlaterJastrow(nn.Module):
+    hilbert: nk.hilbert.SpinOrbitalFermions
+
+    @nn.compact
+    def __call__(self, x):
+        log_slater = nk.models.Slater2nd(
+            self.hilbert, generalized=False, restricted=False,
+            param_dtype=jnp.complex128,
+        )(x)
+        log_jastrow = nk.models.Jastrow(param_dtype=jnp.complex128)(x)
+        return log_slater + log_jastrow
 
 
 class NaNError(RuntimeError):
@@ -109,10 +123,7 @@ def main() -> None:
         hilbert, graph=graph, n_chains=N_CHAINS, sweep_size=SWEEP_SIZE, spin_symmetric=True,
     )
 
-    # Plain Slater determinant (Hartree-Fock-style, unrestricted, complex orbitals).
-    model = nk.models.Slater2nd(
-        hilbert, generalized=False, restricted=False, param_dtype=jnp.complex128,
-    )
+    model = SlaterJastrow(hilbert)
     state = nk.vqs.MCState(
         sampler, model, n_samples=N_SAMPLES, seed=SEED, sampler_seed=SEED,
     )

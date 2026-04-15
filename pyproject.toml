@@ -10,6 +10,7 @@ dependencies = [
     "numpy",
     "optax",
     "scipy",
+    "matplotlib",
 ]
 
 [project.optional-dependencies]

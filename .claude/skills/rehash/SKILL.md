@@ -20,17 +20,29 @@ file hashes and guide the CI secret rotation.
 
 3. **Recompute the manifest's own sha:** `shasum -a 256 frozen-manifest.toml`.
 
-4. **Report to the user** — list which files had hash changes (one line each,
-   `<path>: <old[:12]> -> <new[:12]>`), then:
+4. **Report** — list which files had hash changes (one line each,
+   `<path>: <old[:12]> -> <new[:12]>`), then the new manifest sha.
 
-   > New `FROZEN_MANIFEST_SHA` = `<sha>`
-   >
-   > Rotate the GitHub repo secret so CI's `physics-freeze` check passes:
-   >
-   > ```
-   > gh secret set FROZEN_MANIFEST_SHA --body <sha>
-   > ```
-   >
-   > (or update via web UI: Settings → Secrets and variables → Actions.)
+5. **Ask permission to rotate the CI secret via `gh`:**
 
-5. **Do NOT commit.** The user reviews the diff and commits themselves.
+   > Rotate `FROZEN_MANIFEST_SHA` repo secret now via `gh secret set`?
+
+   If the user confirms, run this as a single Bash block. It pins the repo
+   explicitly (gh auto-detection is ambiguous with multiple remotes) and
+   verifies the timestamp moved (GitHub reads lag writes by 1–2 s):
+
+   ```bash
+   gh auth status >/dev/null 2>&1 || { echo "gh not authed — run 'gh auth login'"; exit 1; }
+   REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+   BEFORE=$(gh secret list -R "$REPO" | grep '^FROZEN_MANIFEST_SHA' | cut -f2)
+   gh secret set FROZEN_MANIFEST_SHA --body "<SHA>" -R "$REPO"
+   sleep 2
+   AFTER=$(gh secret list -R "$REPO" | grep '^FROZEN_MANIFEST_SHA' | cut -f2)
+   [ "$AFTER" != "$BEFORE" ] && echo "rotated ($BEFORE -> $AFTER)" || echo "timestamp unchanged; retry or rotate via web UI"
+   ```
+
+   If the user declines or `gh` is unavailable, print the command for manual
+   rotation (`gh secret set FROZEN_MANIFEST_SHA --body <sha>`) or direct them
+   to Settings → Secrets and variables → Actions.
+
+6. **Do NOT commit.** The user reviews the diff and commits themselves.

@@ -39,6 +39,10 @@ loops edit → commit → train → keep/discard until you Ctrl+C. Each iteratio
 is ~5–10 min wall-clock. Per `program.md`'s `NEVER STOP` rule, the agent
 will not pause to ask — you are the kill switch.
 
+After (or during) a run, `/analyze` renders `progress.png` — a scatter of
+all experiments with discard/keep colors, a running-min step line, and
+annotations on kept commits.
+
 ## What the experiment does
 
 - **System**: 4×4 square lattice, OBC, half-filled (N↑=N↓=8), U=8, t=1, t'=0.

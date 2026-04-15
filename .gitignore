@@ -5,6 +5,7 @@ __pycache__/
 runs/
 *.log
 results.tsv
+progress.png
 .DS_Store
 dist/
 build/

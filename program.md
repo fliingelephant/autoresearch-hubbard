@@ -143,6 +143,9 @@ d4e5f6g	2026-04-16T10:47:00	99.999999	SiT(d=1024,L=4,K=4)	0	0	crash	d_model=1024
 e5f6g7h	2026-04-16T10:55:00	-7.890000	Slater+Jastrow	—	120.5	keep	pivot to HF + Jastrow (no NN)
 ```
 
+Run `uv run analyze.py` (or the `/analyze` skill) at any time to render
+`progress.png` from the current `results.tsv`.
+
 ## The experiment loop
 
 Runs on a dedicated branch (e.g. `autoresearch/apr16`).

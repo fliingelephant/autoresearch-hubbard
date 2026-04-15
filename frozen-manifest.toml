@@ -13,6 +13,7 @@
 #      the editable tree.
 
 [hashes]
+"prepare.py"                              = "6228e7b9787c5c5a8f9bd0f06d973bb107f5e846ecc292b1685ee905b6b58815"
 "src/autoresearch_hubbard/hamiltonian.py" = "5449b0f34fe1214a0e2a5a672a910821ecf96a35666bef183623ff5e619a733a"
 "tests/test_hamiltonian.py"               = "bba4bc5ae9c358b6c8e6b5da82d61c56312764f0a3197e4f72abdb431f4383ae"
 

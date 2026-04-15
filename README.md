@@ -18,22 +18,6 @@ cd Autoresearch-Hubbard
 claude   # or your agent of choice
 ```
 
-For an unattended run on a server (Claude refuses bypass mode under
-`root`, so create a non-root user first; reinstall `uv` / `claude` for
-them if those aren't on that user's `PATH`):
-
-```bash
-useradd -m -s /bin/bash agent
-chown -R agent:agent /workspace/autoresearch-hubbard
-su - agent
-cd /workspace/autoresearch-hubbard
-CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28 claude --permission-mode bypassPermissions
-```
-
-`--permission-mode bypassPermissions` removes approval prompts.
-`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28` makes the session auto-compact earlier
-so the loop can keep iterating through many more experiments.
-
 In the session:
 
 ```
@@ -56,6 +40,23 @@ will not pause to ask — you are the kill switch.
 After (or during) a run, `/analyze` renders `progress.png` — a scatter of
 all experiments with discard/keep colors, a running-min step line, and
 annotations on kept commits.
+
+## Unattended run on a server
+
+Claude refuses bypass mode under `root`, so create a non-root user first
+(reinstall `uv` / `claude` for them if those aren't on that user's `PATH`):
+
+```bash
+useradd -m -s /bin/bash agent
+chown -R agent:agent /workspace/autoresearch-hubbard
+su - agent
+cd /workspace/autoresearch-hubbard
+CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28 claude --permission-mode bypassPermissions
+```
+
+`--permission-mode bypassPermissions` removes approval prompts.
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28` makes the session auto-compact earlier
+so the loop can keep iterating through many more experiments.
 
 ## What the experiment does
 

@@ -115,22 +115,32 @@ in descriptions). The file is gitignored; do not commit it.
 Columns:
 
 ```
-commit	final_energy	status	description
+commit	timestamp	final_energy	model	spring_steps	elapsed_sec	status	description
 ```
 
 1. git commit hash (short, 7 chars)
-2. `final_energy` achieved (e.g. `-7.123456`) — use `99.999999` for crashes
-3. status: `keep`, `discard`, or `crash`
-4. short text description of the change
+2. ISO 8601 timestamp from the run (e.g. `2026-04-16T10:30:45`)
+3. `final_energy` achieved (e.g. `-7.123456`) — use `99.999999` for crashes
+4. model identifier (`MODEL_ID` from `train.py`, e.g. `SiT(d=128,L=4,K=4)`,
+   `Slater`, `Slater+Jastrow`, `MLP-backflow`, `RBM`)
+5. number of timed SPRING steps (the actual variational training count;
+   excludes the warmup step) — `0` for crashes
+6. wall-clock elapsed in seconds (training + compile + startup) — `0` for crashes
+7. status: `keep`, `discard`, or `crash`
+8. short text description of the change
+
+`train.py` prints a pre-filled `tsv_entry:` line at the end of every run.
+Copy it, prepend the commit hash, and replace `[STATUS]` / `[DESC]`.
 
 Example:
 
 ```
-commit	final_energy	status	description
-a1b2c3d	-7.123456	keep	baseline
-b2c3d4e	-7.520000	keep	n_layers 4->6, d_model 128->192
-c3d4e5f	-6.800000	discard	drop positional encoding
-d4e5f6g	99.999999	crash	d_model=1024 (OOM)
+commit	timestamp	final_energy	model	spring_steps	elapsed_sec	status	description
+a1b2c3d	2026-04-16T10:30:45	-7.123456	SiT(d=128,L=4,K=4)	16	332.7	keep	baseline
+b2c3d4e	2026-04-16T10:38:12	-7.520000	SiT(d=192,L=6,K=4)	8	410.4	keep	wider+deeper transformer
+c3d4e5f	2026-04-16T10:46:33	-6.800000	SiT(d=128,L=4,K=4)	18	298.1	discard	drop positional encoding
+d4e5f6g	2026-04-16T10:47:00	99.999999	SiT(d=1024,L=4,K=4)	0	0	crash	d_model=1024 (OOM)
+e5f6g7h	2026-04-16T10:55:00	-7.890000	Slater+Jastrow	—	120.5	keep	pivot to HF + Jastrow (no NN)
 ```
 
 ## The experiment loop

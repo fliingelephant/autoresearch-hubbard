@@ -23,6 +23,7 @@ Extract the metric with:  grep "^final_energy:" run.log
 
 from __future__ import annotations
 
+import datetime
 import time
 
 import jax
@@ -58,6 +59,10 @@ D_MODEL = 128
 N_HEADS = 4
 N_LAYERS = 4
 N_DETERMINANTS = 4
+
+# Short model identifier for results.tsv. Update when changing model family
+# (e.g. "Slater", "Slater+Jastrow", "MLP-backflow", "RBM").
+MODEL_ID = f"SiT(d={D_MODEL},L={N_LAYERS},K={N_DETERMINANTS})"
 
 # Supervised pretraining
 PRETRAIN_SAMPLES = 4096
@@ -214,6 +219,7 @@ def main() -> None:
     all_energies = nnb_trace + spring_trace
     min_energy = min(all_energies) if all_energies else float("inf")
 
+    timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     print(
         f"---\n"
         f"final_energy:    {final_energy:.6f}\n"
@@ -221,7 +227,9 @@ def main() -> None:
         f"elapsed_seconds: {elapsed:.1f}\n"
         f"nnb_steps:       {len(nnb_trace)}\n"
         f"pretrain_steps:  {pretrain_steps}\n"
-        f"spring_steps:    {len(spring_trace)}",
+        f"spring_steps:    {len(spring_trace)}\n"
+        f"tsv_entry:       {timestamp}\t{final_energy:.6f}\t{MODEL_ID}\t"
+        f"{len(spring_trace)}\t{elapsed:.1f}\t[STATUS]\t[DESC]",
         flush=True,
     )
 

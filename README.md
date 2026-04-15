@@ -18,25 +18,26 @@ cd Autoresearch-Hubbard
 claude   # or your agent of choice
 ```
 
-For an unattended run on a server, launch with
-`claude --permission-mode bypassPermissions` so the agent doesn't stop on
-edit/bash prompts. Claude refuses bypass mode under `root` — on a fresh
-cloud GPU box, create a non-root user first (and reinstall `uv` / `claude`
-for them if they aren't on that user's `PATH`):
+For an unattended run on a server (Claude refuses bypass mode under
+`root`, so create a non-root user first; reinstall `uv` / `claude` for
+them if those aren't on that user's `PATH`):
 
 ```bash
 useradd -m -s /bin/bash agent
 chown -R agent:agent /workspace/autoresearch-hubbard
 su - agent
 cd /workspace/autoresearch-hubbard
-claude --permission-mode bypassPermissions
+CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28 claude --permission-mode bypassPermissions
 ```
+
+`--permission-mode bypassPermissions` removes approval prompts.
+`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=28` makes the session auto-compact earlier
+so the loop can keep iterating through many more experiments.
 
 In the session:
 
 ```
 /setup
-/config set autoCompactThreshold 20
 ```
 
 Then prompt:
@@ -44,8 +45,7 @@ Then prompt:
 > Read program.md and start a new autoresearch experiment.
 
 `/setup` installs `uv` (if missing), detects CUDA via `nvidia-smi`, and runs
-`uv sync --extra cuda` or `uv sync --extra cpu` accordingly. The auto-compact
-threshold keeps a long iteration history before compaction kicks in.
+`uv sync --extra cuda` or `uv sync --extra cpu` accordingly.
 
 The agent takes over from `program.md`: proposes a branch tag
 (`autoresearch/<tag>`), initializes `results.tsv`, runs the baseline, then

@@ -74,21 +74,34 @@ LOG_EVERY_PRETRAIN = 50
 
 
 def run_vmc_phase(driver, seconds_budget: float, phase_name: str, log_every: int) -> list[float]:
+    """Run VMC steps until the deadline. The first step (which includes JIT
+    compile) runs as a warmup outside the timer, so the budget covers actual
+    training only."""
     trace: list[float] = []
-    deadline = time.perf_counter() + seconds_budget
     latest: dict[str, float] = {}
-    step = 0
-    while time.perf_counter() < deadline:
-        def capture(_step, log_data, _driver):
-            energy = log_data["Energy"]
-            latest["energy"] = float(jnp.real(energy.mean))
-            latest["variance"] = float(jnp.real(energy.variance))
-            return True
 
+    def capture(_step, log_data, _driver):
+        energy = log_data["Energy"]
+        latest["energy"] = float(jnp.real(energy.mean))
+        latest["variance"] = float(jnp.real(energy.variance))
+        return True
+
+    t_warm = time.perf_counter()
+    driver.run(1, out=None, show_progress=False, callback=capture)
+    trace.append(latest["energy"])
+    print(
+        f"{phase_name} step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): "
+        f"energy={latest['energy']:.6f} variance={latest['variance']:.4f}",
+        flush=True,
+    )
+
+    deadline = time.perf_counter() + seconds_budget
+    step = 1
+    while time.perf_counter() < deadline:
         driver.run(1, out=None, show_progress=False, callback=capture)
         trace.append(latest["energy"])
         step += 1
-        if step == 1 or step % log_every == 0:
+        if step % log_every == 0:
             print(
                 f"{phase_name} step {step}: energy={latest['energy']:.6f} variance={latest['variance']:.4f}",
                 flush=True,
@@ -105,17 +118,29 @@ def run_pretraining_phase(
     learning_rate: float,
     log_every: int,
 ):
+    """Pretrain orbitals until the deadline. First step warmup absorbs JIT
+    compile outside the timer."""
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
+
+    t_warm = time.perf_counter()
+    params, opt_state, loss = supervised_pretrain_step(
+        params, model, configs, targets, optimizer=optimizer, opt_state=opt_state,
+    )
+    print(
+        f"pretrain step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): loss={float(loss):.6f}",
+        flush=True,
+    )
+
     deadline = time.perf_counter() + seconds_budget
-    step = 0
+    step = 1
     while time.perf_counter() < deadline:
         params, opt_state, loss = supervised_pretrain_step(
             params, model, configs, targets,
             optimizer=optimizer, opt_state=opt_state,
         )
         step += 1
-        if step == 1 or step % log_every == 0:
+        if step % log_every == 0:
             print(f"pretrain step {step}: loss={float(loss):.6f}", flush=True)
     return params, step
 

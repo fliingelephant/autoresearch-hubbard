@@ -9,6 +9,7 @@ dependencies = [
     "jax[cpu]",
     "flax",
     "numpy",
+    "optax",
     "scipy",
 ]
 

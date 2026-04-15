@@ -1,7 +1,9 @@
 """Hubbard Hamiltonian builder for the Phase 1 instance (square, OBC, half-filled)."""
 
+import json
 import netket as nk
 import numpy as np
+from pathlib import Path
 from netket.graph import AbstractGraph
 from netket.hilbert import SpinOrbitalFermions
 
@@ -37,3 +39,22 @@ def free_fermion_ground_state_energy(graph, hilbert, t: float = 1.0) -> float:
     eps = np.linalg.eigvalsh(H1)
     n_up, n_dn = hilbert.n_fermions_per_spin
     return float(eps[:n_up].sum() + eps[:n_dn].sum())
+
+
+def compute_ed_reference(
+    H,
+    cache_path: str = "runs/ed_reference.json",
+    *,
+    matrix_free: bool = True,
+) -> float:
+    """Compute and cache the exact ground-state energy for a Hamiltonian."""
+    path = Path(cache_path)
+    if path.exists():
+        payload = json.loads(path.read_text())
+        return float(payload["energy"])
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    energies = np.asarray(nk.exact.lanczos_ed(H, k=1, matrix_free=matrix_free)[0])
+    energy = float(np.ravel(energies)[0])
+    path.write_text(json.dumps({"energy": energy}, indent=2))
+    return energy

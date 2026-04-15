@@ -34,6 +34,7 @@ dependencies = [
     { name = "jax" },
     { name = "netket" },
     { name = "numpy" },
+    { name = "optax" },
     { name = "scipy" },
 ]
 
@@ -48,6 +49,7 @@ requires-dist = [
     { name = "jax", extras = ["cpu"] },
     { name = "netket", specifier = ">=3.22.0.dev3" },
     { name = "numpy" },
+    { name = "optax" },
     { name = "scipy" },
 ]
 

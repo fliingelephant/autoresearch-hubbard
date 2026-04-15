@@ -1,4 +1,4 @@
-"""NNB initialization and supervised orbital pretraining utilities."""
+"""Supervised orbital pretraining utilities."""
 
 from __future__ import annotations
 
@@ -20,43 +20,11 @@ def supervised_pretrain_step(
     configs: jax.Array,
     targets: jax.Array,
     *,
-    learning_rate: float = 3e-4,
-    optimizer: optax.GradientTransformation | None = None,
-    opt_state=None,
+    optimizer: optax.GradientTransformation,
+    opt_state,
 ):
-    tx = optax.adam(learning_rate) if optimizer is None else optimizer
-    state = tx.init(params) if opt_state is None else opt_state
-
-    loss_fn = lambda p: orbital_mse_loss(p, model, configs, targets)
-    _, grads = jax.value_and_grad(loss_fn)(params)
-    updates, state = tx.update(grads, state, params)
-    params = optax.apply_updates(params, updates)
-    loss_after = loss_fn(params)
-    return params, state, loss_after
-
-
-def run_supervised_pretraining(
-    params,
-    model,
-    configs: jax.Array,
-    targets: jax.Array,
-    *,
-    n_steps: int = 5000,
-    learning_rate: float = 3e-4,
-):
-    optimizer = optax.adam(learning_rate)
-    opt_state = optimizer.init(params)
-    losses = []
-
-    for _ in range(n_steps):
-        params, opt_state, loss = supervised_pretrain_step(
-            params,
-            model,
-            configs,
-            targets,
-            optimizer=optimizer,
-            opt_state=opt_state,
-        )
-        losses.append(float(loss))
-
-    return params, losses
+    loss, grads = jax.value_and_grad(
+        lambda p: orbital_mse_loss(p, model, configs, targets)
+    )(params)
+    updates, opt_state = optimizer.update(grads, opt_state, params)
+    return optax.apply_updates(params, updates), opt_state, loss

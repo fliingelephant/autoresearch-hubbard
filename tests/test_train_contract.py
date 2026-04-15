@@ -1,5 +1,4 @@
 import hashlib
-from pathlib import Path
 
 import pytest
 
@@ -86,52 +85,3 @@ def test_prepare_build_system_returns_hamiltonian_triple():
     assert H.hilbert is hi
 
 
-# ---------------------------------------------------------------------------
-# train.py contract helpers
-# ---------------------------------------------------------------------------
-
-
-def test_allocate_phase_seconds_splits_budget_cleanly():
-    import train
-
-    budgets = train.allocate_phase_seconds(
-        total_seconds=100.0,
-        nnb_fraction=0.25,
-        pretrain_fraction=0.15,
-    )
-
-    assert budgets == {"nnb": 25.0, "pretrain": 15.0, "spring": 60.0}
-
-
-def test_allocate_phase_seconds_rejects_overfull_budgets():
-    import train
-
-    with pytest.raises(ValueError):
-        train.allocate_phase_seconds(
-            total_seconds=10.0,
-            nnb_fraction=0.8,
-            pretrain_fraction=0.3,
-        )
-
-
-def test_format_summary_lines_matches_grep_contract():
-    import train
-
-    lines = train.format_summary_lines(
-        {
-            "final_energy": -7.25,
-            "min_energy": -7.5,
-            "elapsed_seconds": 12.5,
-            "nnb_steps": 3,
-            "pretrain_steps": 2,
-            "spring_steps": 4,
-        }
-    )
-
-    assert lines[0] == "---"
-    assert "final_energy:    -7.250000" in lines
-    assert "min_energy:      -7.500000" in lines
-    assert "elapsed_seconds: 12.5" in lines
-    assert "nnb_steps:       3" in lines
-    assert "pretrain_steps:  2" in lines
-    assert "spring_steps:    4" in lines

@@ -1,0 +1,35 @@
+# Frozen physics surface — source of truth.
+#
+# This file pins the physics target of the autoresearch experiments. Any
+# change here MUST be reviewed by a human. The enforcement chain:
+#
+#   1. prepare.verify_frozen_surface() reads this manifest at train.py startup
+#      and rejects the run if any listed file's sha256 has drifted or if the
+#      semantic physics probe disagrees.
+#
+#   2. CI verifies that sha256(frozen-manifest.toml) equals a repo secret
+#      (FROZEN_MANIFEST_SHA). An agent that edits both a frozen file and its
+#      manifest entry will pass (1) but fail (2) — the trust root is outside
+#      the editable tree.
+
+[hashes]
+"src/autoresearch_hubbard/hamiltonian.py" = "5449b0f34fe1214a0e2a5a672a910821ecf96a35666bef183623ff5e619a733a"
+"tests/test_hamiltonian.py"               = "bba4bc5ae9c358b6c8e6b5da82d61c56312764f0a3197e4f72abdb431f4383ae"
+
+[invariants]
+# Wall-clock training budget per trial (seconds).
+TRIAL_SECONDS = 300
+
+# Fixed system parameters.
+LATTICE_L   = 4        # 4x4 square lattice (16 sites)
+LATTICE_PBC = false    # open boundary conditions
+U           = 8.0
+T           = 1.0
+T_PRIME     = 0.0
+# Half-filling (N_up = N_down = L*L/2 = 8) is enforced inside build_hamiltonian.
+
+# Semantic physics probe: free-fermion (U=0) ground-state energy for the
+# canonical lattice. Independent of source formatting; catches Hamiltonian
+# drift the file-hash alone cannot see (e.g. NetKet semantic changes).
+FREE_FERMION_PROBE = -21.88854381999832
+PROBE_TOL          = 1e-10

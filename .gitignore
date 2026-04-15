@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 runs/
 *.log
+results.tsv
 .DS_Store
 dist/
 build/

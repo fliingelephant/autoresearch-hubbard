@@ -1,3 +1,5 @@
+<img src="progress.png" width="80%">
+
 # autoresearch-hubbard
 
 A toy for studying autonomous ML research loops. An LLM agent edits a

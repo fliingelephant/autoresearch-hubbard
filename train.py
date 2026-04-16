@@ -135,7 +135,7 @@ def main() -> None:
     print("=== SPRING VMC ===", flush=True)
     spring_driver = nk.driver.VMC_SR(
         hamiltonian, optax.sgd(SPRING_LR), variational_state=state,
-        diag_shift=DIAG_SHIFT, momentum=MOMENTUM, mode="complex",
+        diag_shift=DIAG_SHIFT, momentum=None, mode="complex",
     )
     spring_trace = run_vmc_phase(spring_driver, TRIAL_SECONDS, "spring", LOG_EVERY_VMC)
 

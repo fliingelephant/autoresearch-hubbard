@@ -53,7 +53,7 @@ MOMENTUM = 0.9
 # Logging cadence
 LOG_EVERY_VMC = 25
 
-N_DETERMINANTS = 6
+N_DETERMINANTS = 8
 MODEL_ID = f"MultiSlater(K={N_DETERMINANTS})+Jastrow"
 
 

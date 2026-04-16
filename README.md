@@ -1,4 +1,4 @@
-<img src="progress.png" width="80%">
+<img src="progress.png">
 
 # autoresearch-hubbard
 

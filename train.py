@@ -41,7 +41,7 @@ jax.config.update("jax_enable_x64", True)
 DTYPE = jnp.float64
 
 # Sampler
-N_CHAINS = 16
+N_CHAINS = 32
 SWEEP_SIZE = 40
 N_SAMPLES = 2560
 

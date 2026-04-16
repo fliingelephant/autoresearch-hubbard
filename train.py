@@ -54,12 +54,14 @@ MOMENTUM = 0.9
 LOG_EVERY_VMC = 25
 
 N_DETERMINANTS = 8
-MODEL_ID = f"MultiSlater(K={N_DETERMINANTS})+Jastrow"
+RBM_ALPHA = 1
+MODEL_ID = f"MultiSlater(K={N_DETERMINANTS})+Jastrow+RBM(a={RBM_ALPHA})"
 
 
 class MultiSlaterJastrow(nn.Module):
     hilbert: nk.hilbert.SpinOrbitalFermions
     n_determinants: int = 2
+    rbm_alpha: int = 1
 
     @nn.compact
     def __call__(self, x):
@@ -69,7 +71,8 @@ class MultiSlaterJastrow(nn.Module):
             param_dtype=jnp.complex128,
         )(x)
         log_jastrow = nk.models.Jastrow(param_dtype=jnp.complex128)(x)
-        return log_slater + log_jastrow
+        log_rbm = nk.models.RBM(alpha=self.rbm_alpha, param_dtype=jnp.complex128)(x)
+        return log_slater + log_jastrow + log_rbm
 
 
 class NaNError(RuntimeError):
@@ -126,7 +129,7 @@ def main() -> None:
         hilbert, graph=graph, n_chains=N_CHAINS, sweep_size=SWEEP_SIZE, spin_symmetric=True,
     )
 
-    model = MultiSlaterJastrow(hilbert, n_determinants=N_DETERMINANTS)
+    model = MultiSlaterJastrow(hilbert, n_determinants=N_DETERMINANTS, rbm_alpha=RBM_ALPHA)
     state = nk.vqs.MCState(
         sampler, model, n_samples=N_SAMPLES, seed=SEED, sampler_seed=SEED,
     )

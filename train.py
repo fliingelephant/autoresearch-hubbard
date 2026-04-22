@@ -1,24 +1,27 @@
 """
-Autoresearch training script for the 4x4 Hubbard model.
+Autoresearch training script for the 16x4 Hubbard model.
 
 Agent-editable single file. Architecture, optimizer, hyperparameters,
 phase splits, and loop structure are all fair game. Frozen pieces live in
 `prepare.py` and `src/autoresearch_hubbard/hamiltonian.py`.
 
+Paper baseline (Gu et al. 2025, Table S2 at 16x4 OBC half-filled):
+    HF   = -0.52499
+    PEPS = -0.68304(5)    (D >= 20)
+    NQS  = -0.68325       (paper's own result)
+    DMRG = -0.68537       (beat-target for "NQS wins" — hard at Ly = 4)
+
 Usage:
     uv run train.py > run.log 2>&1
 
-At the end the script prints a summary block:
-
+Summary printed at end:
     ---
     final_energy:    ...
     min_energy:      ...
     elapsed_seconds: ...
     nnb_steps:       ...
     pretrain_steps:  ...
-    spring_steps:    ...
-
-Extract the metric with:  grep "^final_energy:" run.log
+    spring_steps:    ...        (MARCH/SPRING VMC iterations)
 """
 
 from __future__ import annotations
@@ -32,8 +35,16 @@ import jax.numpy as jnp
 import netket as nk
 import optax
 
-from prepare import TRIAL_SECONDS, build_system, verify_frozen_surface
+from prepare import (
+    LATTICE_LX,
+    LATTICE_LY,
+    LATTICE_PBC,
+    TRIAL_SECONDS,
+    build_system,
+    verify_frozen_surface,
+)
 from autoresearch_hubbard.ansatz import NNB, SiTBackflow
+from autoresearch_hubbard.driver import run_march_phase
 from autoresearch_hubbard.pretrain import supervised_pretrain_step
 
 # ---------------------------------------------------------------------------
@@ -42,44 +53,48 @@ from autoresearch_hubbard.pretrain import supervised_pretrain_step
 
 SEED = 0
 
-# Numerical precision. Agent-tunable: flip to False + float32 for cheaper runs
-# if the ansatz still converges; keep x64 for the paper-faithful baseline.
 jax.config.update("jax_enable_x64", True)
 DTYPE = jnp.float64
 
-# Phase budget fractions of TRIAL_SECONDS (SPRING gets the remainder).
+N_SITES = LATTICE_LX * LATTICE_LY
+
+# Phase budget fractions of TRIAL_SECONDS (VMC/MARCH gets the remainder).
 NNB_FRACTION = 0.2
 PRETRAIN_FRACTION = 0.1
 
-# Sampler
+# Sampler. Paper Table S7: MCMC step = 2.5 * Lx * Ly.
 N_CHAINS = 16
-SWEEP_SIZE = 40
+SWEEP_SIZE = max(round(2.5 * N_SITES), 1)
 N_SAMPLES = 4096
 
-# NNB warm-start
+# NNB warm-start (paper Table S5).
 NNB_HIDDEN_DIM = 256
 NNB_LR = 1e-4
 
-# SiT transformer backflow
-D_MODEL = 128
+# SiT transformer backflow (paper Table S7).
+D_MODEL = 256
 N_HEADS = 4
 N_LAYERS = 4
 N_DETERMINANTS = 4
+MODEL_ID = f"SiT(d={D_MODEL},L={N_LAYERS},K={N_DETERMINANTS})+MARCH"
 
-# Short model identifier for results.tsv. Update when changing model family
-# (e.g. "Slater", "Slater+Jastrow", "MLP-backflow", "RBM").
-MODEL_ID = f"SiT(d={D_MODEL},L={N_LAYERS},K={N_DETERMINANTS})"
-
-# Supervised pretraining
+# Pretraining (paper Table S6).
 PRETRAIN_SAMPLES = 4096
 PRETRAIN_LR = 3e-4
 
-# SPRING
-SPRING_LR = 1e-2
-DIAG_SHIFT = 1e-3
-MOMENTUM = 0.95
+# MARCH main phase (paper Table S7).
+LEARNING_RATE = 1e-2
+DIAG_SHIFT = 1e-3          # λ
+MOMENTUM = 0.95             # μ (SPRING)
+BETA = 0.995                # β (MARCH second-moment decay)
+MOMENT_ADAPTIVE = True      # MARCH on top of SPRING
+CLIP_C = 5.0                # FermiNet-style local-energy clip
 
-# Logging cadence
+# Norm-constraint schedule: 10^-1 * (1 + max(t-8000,0)/8000)^-1 (paper Table S7).
+def norm_bound(step: int) -> float:
+    return 1e-1 / (1.0 + max(step - 8000, 0) / 8000.0)
+
+# Logging cadence.
 LOG_EVERY_VMC = 10
 LOG_EVERY_PRETRAIN = 50
 
@@ -93,10 +108,8 @@ def _check_finite(value: float, phase: str, step: int, what: str) -> None:
         raise NaNError(f"{phase} step {step}: {what}={value} (training diverged)")
 
 
-def run_vmc_phase(driver, seconds_budget: float, phase_name: str, log_every: int) -> list[float]:
-    """Run VMC steps until the deadline. The first step (which includes JIT
-    compile) runs as a warmup outside the timer, so the budget covers actual
-    training only. Raises NaNError if energy goes non-finite."""
+def run_nnb_phase(driver, seconds_budget: float, phase_name: str, log_every: int) -> list[float]:
+    """Run NNB VMC (via nk.driver.VMC) until the deadline; first step warmup absorbs JIT."""
     trace: list[float] = []
     latest: dict[str, float] = {}
 
@@ -140,8 +153,7 @@ def run_pretraining_phase(
     learning_rate: float,
     log_every: int,
 ):
-    """Pretrain orbitals until the deadline. First step warmup absorbs JIT
-    compile outside the timer. Raises NaNError if loss goes non-finite."""
+    """Supervised pretrain of SiT orbitals against NNB targets (paper Eq. S28)."""
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
 
@@ -176,10 +188,15 @@ def main() -> None:
     t_start = time.perf_counter()
     nnb_seconds = TRIAL_SECONDS * NNB_FRACTION
     pretrain_seconds = TRIAL_SECONDS * PRETRAIN_FRACTION
-    spring_seconds = TRIAL_SECONDS - nnb_seconds - pretrain_seconds
+    march_seconds = TRIAL_SECONDS - nnb_seconds - pretrain_seconds
+    print(
+        f"System: {LATTICE_LX}x{LATTICE_LY} {'PBC' if LATTICE_PBC else 'OBC'} "
+        f"({N_SITES} sites), sweep_size={SWEEP_SIZE}",
+        flush=True,
+    )
     print(
         f"Trial budget: {TRIAL_SECONDS}s  "
-        f"phase split: nnb={nnb_seconds:.1f} pretrain={pretrain_seconds:.1f} spring={spring_seconds:.1f}",
+        f"phase split: nnb={nnb_seconds:.1f} pretrain={pretrain_seconds:.1f} march={march_seconds:.1f}",
         flush=True,
     )
 
@@ -203,7 +220,7 @@ def main() -> None:
         optax.adam(nnb_schedule, b1=0.9, b2=0.999),
         variational_state=nnb_state,
     )
-    nnb_trace = run_vmc_phase(nnb_driver, nnb_seconds, "nnb", LOG_EVERY_VMC)
+    nnb_trace = run_nnb_phase(nnb_driver, nnb_seconds, "nnb", LOG_EVERY_VMC)
 
     # Phase 2: supervised pretraining of the SiT orbitals against the NNB ansatz.
     print("=== Phase 2: supervised pretraining ===", flush=True)
@@ -223,34 +240,47 @@ def main() -> None:
         pretrain_seconds, PRETRAIN_LR, LOG_EVERY_PRETRAIN,
     )
 
-    # Phase 3: SPRING variational Monte Carlo.
-    print("=== Phase 3: SPRING VMC ===", flush=True)
+    # Phase 3: MARCH VMC (paper Table S7).
+    print("=== Phase 3: MARCH VMC ===", flush=True)
     sit_state = nk.vqs.MCState(
         sampler, sit, n_samples=N_SAMPLES, variables=sit_variables,
         seed=SEED + 2, sampler_seed=SEED + 2,
     )
-    spring_driver = nk.driver.VMC_SR(
-        hamiltonian, optax.sgd(SPRING_LR), variational_state=sit_state,
-        diag_shift=DIAG_SHIFT, momentum=MOMENTUM, mode="complex",
+    march_trace = run_march_phase(
+        sit_state, hamiltonian,
+        seconds_budget=march_seconds,
+        learning_rate=LEARNING_RATE,
+        diag_shift=DIAG_SHIFT,
+        momentum=MOMENTUM,
+        moment_adaptive=MOMENT_ADAPTIVE,
+        beta=BETA,
+        clip_c=CLIP_C,
+        norm_bound_fn=norm_bound,
+        mode="complex",
+        log_every=LOG_EVERY_VMC,
+        phase_name="march",
     )
-    spring_trace = run_vmc_phase(spring_driver, spring_seconds, "spring", LOG_EVERY_VMC)
 
     elapsed = time.perf_counter() - t_start
-    final_energy = spring_trace[-1] if spring_trace else float("inf")
-    all_energies = nnb_trace + spring_trace
+    final_energy = march_trace[-1] if march_trace else float("inf")
+    all_energies = nnb_trace + march_trace
     min_energy = min(all_energies) if all_energies else float("inf")
+    final_per_site = final_energy / N_SITES
+    min_per_site = min_energy / N_SITES
 
     timestamp = datetime.datetime.now().isoformat(timespec="seconds")
     print(
         f"---\n"
         f"final_energy:    {final_energy:.6f}\n"
+        f"final_per_site:  {final_per_site:.6f}\n"
         f"min_energy:      {min_energy:.6f}\n"
+        f"min_per_site:    {min_per_site:.6f}\n"
         f"elapsed_seconds: {elapsed:.1f}\n"
         f"nnb_steps:       {len(nnb_trace)}\n"
         f"pretrain_steps:  {pretrain_steps}\n"
-        f"spring_steps:    {len(spring_trace)}\n"
-        f"tsv_entry:       {timestamp}\t{final_energy:.6f}\t{MODEL_ID}\t"
-        f"{len(spring_trace)}\t{elapsed:.1f}\t[STATUS]\t[DESC]",
+        f"spring_steps:    {len(march_trace)}\n"
+        f"tsv_entry:       {timestamp}\t{final_per_site:.6f}\t{MODEL_ID}\t"
+        f"{len(march_trace)}\t{elapsed:.1f}\t[STATUS]\t[DESC]",
         flush=True,
     )
 

@@ -1,0 +1,377 @@
+# Benchmark energies for the 2D Hubbard model.
+#
+# All energies are per-site (E / N_sites), in units of the hopping t.
+# All entries are verbatim from Gu et al. 2025 (arXiv:2507.02644), either the
+# paper's own NQS numbers or the comparison values they report for prior works.
+#
+# Convention:
+#   bc       = "OBC" or "PBC" (both directions); {x=..., y=...} for cylinders.
+#   filling  = "half", "1/8-doped", "3/8-doped", or "unspecified".
+#   err      = stated 1-sigma uncertainty on the last digits of e_per_site.
+#   cite     = key into [refs] for the paper that originally reported the value.
+#   source   = where in Gu et al. 2025 the number appears.
+#
+# This file is frozen (listed in frozen-manifest.toml). Any edit requires a
+# /rehash + rotation of the FROZEN_MANIFEST_SHA CI secret.
+
+
+# ============================================================================
+# Cited references
+# ============================================================================
+
+[refs.gu2025]
+authors = "Gu, Li, Lin, Zhan, et al."
+title = "Solving the Hubbard model with Neural Quantum States"
+arxiv = "2507.02644"
+url = "https://arxiv.org/abs/2507.02644"
+year = 2025
+
+[refs.liu2025]
+authors = "Liu, Zhai, Peng, Gu, Chan"
+title = "Accurate Simulation of the Hubbard Model with Finite Fermionic Projected Entangled Pair States"
+journal = "Phys. Rev. Lett. 134, 256502"
+doi = "10.1103/r4q9-4yvj"
+url = "https://link.aps.org/doi/10.1103/r4q9-4yvj"
+year = 2025
+
+[refs.qin2016]
+authors = "Qin, Shi, Zhang"
+title = "Benchmark study of the two-dimensional Hubbard model with auxiliary-field quantum Monte Carlo method"
+journal = "Phys. Rev. B 94, 085103"
+url = "https://journals.aps.org/prb/abstract/10.1103/PhysRevB.94.085103"
+year = 2016
+
+[refs.robledo2022]
+# Gu et al. reference (21); HFDS (Hidden-Fermion Determinant States).
+authors = "Robledo Moreno et al."
+label = "MLP+HFDS+SR"
+year = 2022
+
+[refs.luo2019]
+# Gu et al. reference (20); MLP backflow (NNB).
+authors = "Luo, Clark"
+label = "MLP+NNB"
+year = 2019
+
+
+# ============================================================================
+# Table S1: pure Hubbard, half-filled, PBC
+# ============================================================================
+
+[[benchmarks]]
+id = "8x8_pbc_half"
+system = { Lx = 8, Ly = 8, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S1" }
+methods = [
+    { name = "AFQMC", e_per_site = -0.5262,  err = 0.0005, cite = "qin2016" },
+    { name = "NQS",   e_per_site = -0.52582,               cite = "gu2025" },
+]
+
+[[benchmarks]]
+id = "10x10_pbc_half"
+system = { Lx = 10, Ly = 10, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S1" }
+methods = [
+    { name = "AFQMC", e_per_site = -0.5254,  err = 0.0003, cite = "qin2016" },
+    { name = "NQS",   e_per_site = -0.52492,               cite = "gu2025" },
+]
+
+[[benchmarks]]
+id = "12x12_pbc_half"
+system = { Lx = 12, Ly = 12, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S1" }
+methods = [
+    { name = "AFQMC", e_per_site = -0.5246,  err = 0.0001, cite = "qin2016" },
+    { name = "NQS",   e_per_site = -0.52440,               cite = "gu2025" },
+]
+
+
+# ============================================================================
+# Table S2: pure Hubbard, half-filled, OBC
+# ============================================================================
+
+[[benchmarks]]
+id = "16x4_obc_half"
+system = { Lx = 16, Ly = 4, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.52499 },
+    { name = "PEPS", e_per_site = -0.68304, err = 0.00005, bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.68325,                                   cite = "gu2025" },
+    { name = "DMRG", e_per_site = -0.68537 },
+]
+
+[[benchmarks]]
+id = "16x6_obc_half"
+system = { Lx = 16, Ly = 6, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.54269 },
+    { name = "PEPS", e_per_site = -0.7008,  err = 0.0002,  bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.70307,                                   cite = "gu2025" },
+    { name = "DMRG", e_per_site = -0.70550 },
+]
+
+[[benchmarks]]
+id = "8x8_obc_half"
+system = { Lx = 8, Ly = 8, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.53874 },
+    { name = "PEPS", e_per_site = -0.69928, err = 0.00003, bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.69952,                                   cite = "gu2025" },
+    { name = "DMRG", e_per_site = -0.69840 },
+]
+
+[[benchmarks]]
+id = "16x8_obc_half"
+system = { Lx = 16, Ly = 8, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.55335 },
+    { name = "PEPS", e_per_site = -0.7122,  err = 0.0003,  bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.71309,                                   cite = "gu2025" },
+    { name = "DMRG", e_per_site = -0.71250 },
+]
+
+[[benchmarks]]
+id = "16x12_obc_half"
+system = { Lx = 16, Ly = 12, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.56250 },
+    { name = "PEPS", e_per_site = -0.7202,  err = 0.0002,  bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.72212,                                   cite = "gu2025" },
+]
+
+[[benchmarks]]
+id = "16x16_obc_half"
+system = { Lx = 16, Ly = 16, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", table = "S2" }
+methods = [
+    { name = "HF",   e_per_site = -0.56716 },
+    { name = "PEPS", e_per_site = -0.7260,  err = 0.0002,  bond_dim = ">=20", cite = "liu2025" },
+    { name = "NQS",  e_per_site = -0.72747,                                   cite = "gu2025" },
+]
+
+
+# ============================================================================
+# Section S4.1: 16x4 PBC pure Hubbard, HFDS comparison
+# ============================================================================
+
+[[benchmarks]]
+id = "16x4_pbc_half"
+system = { Lx = 16, Ly = 4, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "half" }
+source = { ref = "gu2025", section = "S4.1" }
+note = "§S4.1 does not explicitly state the filling; inferred half-filled (pure Hubbard benchmark against HFDS)."
+methods = [
+    { name = "HFDS", e_per_site = -0.753,   err = 0.002, cite = "robledo2022" },
+    { name = "NQS",  e_per_site = -0.76298,              cite = "gu2025" },
+]
+
+
+# ============================================================================
+# Section S4.2: 16x8 cylinder, t'=-0.2, DMRG comparison
+# ============================================================================
+
+[[benchmarks]]
+id = "16x8_cyl_tprime"
+system = { Lx = 16, Ly = 8, bc = { x = "OBC", y = "PBC" }, t = 1, t_prime = -0.2, U = 8, filling = "unspecified" }
+source = { ref = "gu2025", section = "S4.2" }
+note = "§S4.2 does not state filling or axis-BC mapping. 'Cylinder' follows the common convention (OBC long axis, PBC short axis)."
+methods = [
+    { name = "DMRG", e_per_site = -0.72747, bond_dim = "m=40000" },
+    { name = "NQS",  e_per_site = -0.72791, cite = "gu2025" },
+]
+
+
+# ============================================================================
+# Figures S11-S16: pure Hubbard, OBC, 1/8-doped, NQS
+# ============================================================================
+
+[[benchmarks]]
+id = "8x8_obc_doped"
+system = { Lx = 8, Ly = 8, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S11" }
+methods = [{ name = "NQS", e_per_site = -0.6995, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x4_obc_doped"
+system = { Lx = 16, Ly = 4, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S12" }
+methods = [{ name = "NQS", e_per_site = -0.6833, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x6_obc_doped"
+system = { Lx = 16, Ly = 6, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S13" }
+methods = [{ name = "NQS", e_per_site = -0.7031, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x8_obc_doped"
+system = { Lx = 16, Ly = 8, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S14" }
+methods = [{ name = "NQS", e_per_site = -0.7131, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x12_obc_doped"
+system = { Lx = 16, Ly = 12, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S15" }
+methods = [{ name = "NQS", e_per_site = -0.7221, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x16_obc_doped"
+system = { Lx = 16, Ly = 16, bc = "OBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S16" }
+methods = [{ name = "NQS", e_per_site = -0.7275, cite = "gu2025" }]
+
+
+# ============================================================================
+# Figures S17-S20: pure Hubbard, PBC, 1/8-doped, NQS
+# ============================================================================
+
+[[benchmarks]]
+id = "16x8_pbc_doped"
+system = { Lx = 16, Ly = 8, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S17" }
+methods = [{ name = "NQS", e_per_site = -0.7568, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x12_pbc_doped"
+system = { Lx = 16, Ly = 12, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S18" }
+methods = [{ name = "NQS", e_per_site = -0.7562, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "8x8_pbc_doped"
+system = { Lx = 8, Ly = 8, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S19" }
+methods = [{ name = "NQS", e_per_site = -0.7532, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "12x12_pbc_doped"
+system = { Lx = 12, Ly = 12, bc = "PBC", t = 1, t_prime = 0, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S20" }
+methods = [{ name = "NQS", e_per_site = -0.7567, cite = "gu2025" }]
+
+
+# ============================================================================
+# Figures S21-S30: t'=-0.2, PBC, 1/8-doped, NQS
+# ============================================================================
+
+[[benchmarks]]
+id = "8x8_pbc_doped_tprime"
+system = { Lx = 8, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S21" }
+methods = [{ name = "NQS", e_per_site = -0.7447, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "10x8_pbc_doped_tprime"
+system = { Lx = 10, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S22" }
+methods = [{ name = "NQS", e_per_site = -0.7427, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "12x8_pbc_doped_tprime"
+system = { Lx = 12, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S23" }
+methods = [{ name = "NQS", e_per_site = -0.7456, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "18x8_pbc_doped_tprime"
+system = { Lx = 18, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S24" }
+methods = [{ name = "NQS", e_per_site = -0.7421, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "20x8_pbc_doped_tprime"
+system = { Lx = 20, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S25" }
+methods = [{ name = "NQS", e_per_site = -0.7433, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "24x8_pbc_doped_tprime"
+system = { Lx = 24, Ly = 8, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S26" }
+methods = [{ name = "NQS", e_per_site = -0.7423, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "12x12_pbc_doped_tprime"
+system = { Lx = 12, Ly = 12, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S27" }
+methods = [{ name = "NQS", e_per_site = -0.7414, cite = "gu2025" }]
+
+[[benchmarks]]
+id = "16x10_pbc_doped_tprime"
+system = { Lx = 16, Ly = 10, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S28,S29" }
+note = "S28: default horizontal stripe. S29: vertical stripe obtained via a temporary pinning field."
+methods = [
+    { name = "NQS", e_per_site = -0.7434, variant = "horizontal stripe", cite = "gu2025" },
+    { name = "NQS", e_per_site = -0.7418, variant = "vertical stripe (pinning field)", cite = "gu2025" },
+]
+
+[[benchmarks]]
+id = "16x12_pbc_doped_tprime"
+system = { Lx = 16, Ly = 12, bc = "PBC", t = 1, t_prime = -0.2, U = 8, filling = "1/8-doped" }
+source = { ref = "gu2025", figure = "S30" }
+methods = [{ name = "NQS", e_per_site = -0.7440, cite = "gu2025" }]
+
+
+# ============================================================================
+# Table S4: accuracy comparison with prior NQS methods
+# Absolute energies not reported; only relative error vs exact solution.
+# ============================================================================
+
+[[accuracy_benchmarks]]
+method = "RBM+SR"
+paper_ref = "Gu et al. ref (18)"
+label_in_fig1C = "RBM+SR, 2017"
+system = { Lx = 8, Ly = 8, doping = 0 }
+rel_error = 0.003
+accuracy = 0.997
+source = { ref = "gu2025", table = "S4" }
+
+[[accuracy_benchmarks]]
+method = "MLP+NNB"
+paper_ref = "Gu et al. ref (20)"
+cite = "luo2019"
+system = { Lx = 4, Ly = 4, doping = 0.125 }
+rel_error = 0.01
+accuracy = 0.99
+source = { ref = "gu2025", table = "S4" }
+
+[[accuracy_benchmarks]]
+method = "MLP+Symmetry"
+paper_ref = "Gu et al. ref (19)"
+label_in_fig1C = "MLP+Symmetry, 2021"
+system = { Lx = 4, Ly = 4, doping = 0.375 }
+rel_error = 0.0005
+accuracy = 0.9995
+source = { ref = "gu2025", table = "S4" }
+
+[[accuracy_benchmarks]]
+method = "MLP+HFDS+SR"
+paper_ref = "Gu et al. ref (21)"
+cite = "robledo2022"
+system = { Lx = 4, Ly = 4, doping = 0.125 }
+rel_error = 0.001
+accuracy = 0.999
+source = { ref = "gu2025", table = "S4" }
+
+[[accuracy_benchmarks]]
+method = "MLP+Tensor"
+paper_ref = "Gu et al. ref (22)"
+label_in_fig1C = "MLP+Tensor, 2024"
+system = { Lx = 8, Ly = 8, doping = 0 }
+rel_error = 0.005
+accuracy = 0.995
+source = { ref = "gu2025", table = "S4" }
+
+[[accuracy_benchmarks]]
+method = "Transformer+MARCH"
+cite = "gu2025"
+system = { Lx = 12, Ly = 12, doping = 0 }
+rel_error = 0.0002
+accuracy = 0.9998
+source = { ref = "gu2025", table = "S4" }

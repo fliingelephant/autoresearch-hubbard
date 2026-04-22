@@ -1,22 +1,40 @@
-"""Hubbard Hamiltonian builder for the Phase 1 instance (square, OBC, half-filled)."""
+"""Hubbard Hamiltonian builder for Phase 1 instances (rectangular lattices, mixed BC, half filling)."""
 
-import json
 import netket as nk
 import numpy as np
-from pathlib import Path
 from netket.graph import AbstractGraph
 from netket.hilbert import SpinOrbitalFermions
 
 
-def build_hamiltonian(L: int = 4, U: float = 8.0, t: float = 1.0, pbc: bool = False):
-    """Build the 2D square Hubbard Hamiltonian at half filling.
+def build_hamiltonian(
+    Lx: int,
+    Ly: int,
+    U: float = 8.0,
+    t: float = 1.0,
+    pbc=False,
+):
+    """Build the 2D square-lattice Hubbard Hamiltonian at half filling.
 
-    Returns (H, hilbert, graph). The Hilbert space is the fixed-particle-number
-    sector with N_up = N_down = L*L/2 (L must be even).
+    Parameters
+    ----------
+    Lx, Ly:
+        Lattice extents. Total sites = Lx * Ly. Must give an even site count
+        (half filling requires N_up = N_down = Lx*Ly/2).
+    U, t:
+        On-site repulsion and nearest-neighbor hopping amplitudes.
+    pbc:
+        ``bool`` for uniform BC in both directions, or a length-2 sequence
+        ``[pbc_x, pbc_y]`` for per-direction control (cylinders).
+
+    Returns
+    -------
+    (H, hilbert, graph) — all via NetKet.
     """
-    n_sites = L * L
+    pbc_list = [bool(pbc), bool(pbc)] if isinstance(pbc, bool) else [bool(pbc[0]), bool(pbc[1])]
+
+    n_sites = Lx * Ly
     n_per_spin = n_sites // 2
-    g: AbstractGraph = nk.graph.Hypercube(length=L, n_dim=2, pbc=pbc)
+    g: AbstractGraph = nk.graph.Grid([Lx, Ly], pbc=pbc_list)
     hi = SpinOrbitalFermions(
         n_orbitals=n_sites, s=1 / 2, n_fermions_per_spin=(n_per_spin, n_per_spin)
     )
@@ -39,22 +57,3 @@ def free_fermion_ground_state_energy(graph, hilbert, t: float = 1.0) -> float:
     eps = np.linalg.eigvalsh(H1)
     n_up, n_dn = hilbert.n_fermions_per_spin
     return float(eps[:n_up].sum() + eps[:n_dn].sum())
-
-
-def compute_ed_reference(
-    H,
-    cache_path: str = "runs/ed_reference.json",
-    *,
-    matrix_free: bool = True,
-) -> float:
-    """Compute and cache the exact ground-state energy for a Hamiltonian."""
-    path = Path(cache_path)
-    if path.exists():
-        payload = json.loads(path.read_text())
-        return float(payload["energy"])
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    energies = np.asarray(nk.exact.lanczos_ed(H, k=1, matrix_free=matrix_free)[0])
-    energy = float(np.ravel(energies)[0])
-    path.write_text(json.dumps({"energy": energy}, indent=2))
-    return energy

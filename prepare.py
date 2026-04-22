@@ -25,7 +25,6 @@ from pathlib import Path
 
 from autoresearch_hubbard.hamiltonian import (
     build_hamiltonian,
-    compute_ed_reference,
     free_fermion_ground_state_energy,
 )
 
@@ -47,7 +46,8 @@ _invariants = _manifest["invariants"]
 
 # Expose invariants as module attributes for train.py / callers.
 TRIAL_SECONDS: int = _invariants["TRIAL_SECONDS"]
-LATTICE_L: int = _invariants["LATTICE_L"]
+LATTICE_LX: int = _invariants["LATTICE_LX"]
+LATTICE_LY: int = _invariants["LATTICE_LY"]
 LATTICE_PBC: bool = _invariants["LATTICE_PBC"]
 U: float = _invariants["U"]
 T: float = _invariants["T"]
@@ -63,8 +63,8 @@ PROBE_TOL: float = _invariants["PROBE_TOL"]
 
 
 def build_system():
-    """Return (H, hilbert, graph) for the fixed Phase 1 Hubbard instance."""
-    return build_hamiltonian(L=LATTICE_L, U=U, t=T, pbc=LATTICE_PBC)
+    """Return (H, hilbert, graph) for the frozen Hubbard instance."""
+    return build_hamiltonian(Lx=LATTICE_LX, Ly=LATTICE_LY, U=U, t=T, pbc=LATTICE_PBC)
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +110,8 @@ def verify_frozen_surface() -> None:
 
 __all__ = [
     "TRIAL_SECONDS",
-    "LATTICE_L",
+    "LATTICE_LX",
+    "LATTICE_LY",
     "LATTICE_PBC",
     "U",
     "T",
@@ -119,7 +120,6 @@ __all__ = [
     "PROBE_TOL",
     "build_system",
     "build_hamiltonian",
-    "compute_ed_reference",
     "free_fermion_ground_state_energy",
     "manifest_sha256",
     "verify_frozen_surface",
@@ -129,8 +129,9 @@ __all__ = [
 if __name__ == "__main__":
     verify_frozen_surface()
     H, hi, g = build_system()
+    bc_desc = "PBC" if LATTICE_PBC else "OBC"
     print(
-        f"System: {LATTICE_L}x{LATTICE_L} OBC={not LATTICE_PBC} "
+        f"System: {LATTICE_LX}x{LATTICE_LY} {bc_desc} "
         f"U={U} t={T} t'={T_PRIME} half-filled"
     )
     print(f"Hilbert: {hi.n_orbitals} orbitals, n_fermions_per_spin={hi.n_fermions_per_spin}")

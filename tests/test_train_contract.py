@@ -62,7 +62,8 @@ def test_prepare_exports_fixed_constants():
     import prepare
 
     assert prepare.TRIAL_SECONDS == 600
-    assert prepare.LATTICE_L == 4
+    assert prepare.LATTICE_LX == 16
+    assert prepare.LATTICE_LY == 4
     assert prepare.LATTICE_PBC is False
     assert prepare.U == 8.0
     assert prepare.T == 1.0
@@ -75,13 +76,11 @@ def test_prepare_build_system_returns_hamiltonian_triple():
     import prepare
 
     H, hi, g = prepare.build_system()
+    n_sites = prepare.LATTICE_LX * prepare.LATTICE_LY
     assert isinstance(hi, nk.hilbert.SpinOrbitalFermions)
-    assert hi.n_orbitals == prepare.LATTICE_L ** 2
-    assert tuple(hi.n_fermions_per_spin) == (
-        prepare.LATTICE_L ** 2 // 2,
-        prepare.LATTICE_L ** 2 // 2,
-    )
-    assert g.n_nodes == prepare.LATTICE_L ** 2
+    assert hi.n_orbitals == n_sites
+    assert tuple(hi.n_fermions_per_spin) == (n_sites // 2, n_sites // 2)
+    assert g.n_nodes == n_sites
     assert H.hilbert is hi
 
 

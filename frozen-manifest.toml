@@ -13,24 +13,26 @@
 #      the editable tree.
 
 [hashes]
-"prepare.py"                              = "e1ad2a84169f4c9b78abd53b1cf2be479460a9db9e2f9101118bb68135bf19a4"
-"src/autoresearch_hubbard/hamiltonian.py" = "5449b0f34fe1214a0e2a5a672a910821ecf96a35666bef183623ff5e619a733a"
-"tests/test_hamiltonian.py"               = "bba4bc5ae9c358b6c8e6b5da82d61c56312764f0a3197e4f72abdb431f4383ae"
+"prepare.py"                              = "7f742ca2ef06b874c7606f1b25bc9a2da888f666d76235c8ab3666cc967f5f88"
+"src/autoresearch_hubbard/hamiltonian.py" = "e58f71f7302ba22dd5bcfa8d616c079b25011e25716d351950197ca55a4e4bf5"
+"tests/test_hamiltonian.py"               = "592db5a6361a86722a02a581dffaa32927f4ee5d37945fec4748a83e3ea0cac2"
+"references/benchmarks.toml"              = "812908c8a0a40b1bd6409daa1d4fd9f32538a658ea144906c8af3a04f1fdb26f"
 
 [invariants]
 # Wall-clock training budget per trial (seconds).
 TRIAL_SECONDS = 600
 
-# Fixed system parameters.
-LATTICE_L   = 4        # 4x4 square lattice (16 sites)
-LATTICE_PBC = false    # open boundary conditions
+# Fixed system parameters. 16x4 OBC half-filled matches Gu et al. 2025 Table S2.
+LATTICE_LX  = 16
+LATTICE_LY  = 4
+LATTICE_PBC = false    # open boundary conditions in both directions
 U           = 8.0
 T           = 1.0
 T_PRIME     = 0.0
-# Half-filling (N_up = N_down = L*L/2 = 8) is enforced inside build_hamiltonian.
+# Half-filling (N_up = N_down = Lx*Ly/2 = 32) is enforced inside build_hamiltonian.
 
 # Semantic physics probe: free-fermion (U=0) ground-state energy for the
 # canonical lattice. Independent of source formatting; catches Hamiltonian
 # drift the file-hash alone cannot see (e.g. NetKet semantic changes).
-FREE_FERMION_PROBE = -21.88854381999832
+FREE_FERMION_PROBE = -95.85460639709463
 PROBE_TOL          = 1e-10

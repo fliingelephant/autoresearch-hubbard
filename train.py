@@ -45,7 +45,7 @@ from prepare import (
     verify_frozen_surface,
 )
 from autoresearch_hubbard.ansatz import NNB, SiTBackflow
-from autoresearch_hubbard.driver import VMC_SR_clipped, NormSchedule
+from autoresearch_hubbard.driver import NormSchedule, VMC_SR_clipped
 from autoresearch_hubbard.pretrain import supervised_pretrain_step
 
 # ---------------------------------------------------------------------------
@@ -64,7 +64,7 @@ NNB_FRACTION = 0.2
 PRETRAIN_FRACTION = 0.1
 
 # Sampler. Paper Table S7: MCMC step = 2.5 * Lx * Ly.
-N_CHAINS = 16
+N_CHAINS = 128
 SWEEP_SIZE = max(round(2.5 * N_SITES), 1)
 N_SAMPLES = 4096
 
@@ -216,10 +216,16 @@ def main() -> None:
     def nnb_schedule(step):
         return NNB_LR / (1.0 + step / 1.0e4)
 
-    nnb_driver = nk.driver.VMC(
+    # NNB warm-start via MinSR + clipping (paper Table S5 specifies Adam;
+    # we use MinSR as a natural-gradient substitute because VMC_SR_clipped
+    # is the only clean clipping-aware driver available in netket today).
+    nnb_driver = VMC_SR_clipped(
         hamiltonian,
-        optax.adam(nnb_schedule, b1=0.9, b2=0.999),
+        optax.sgd(nnb_schedule),
         variational_state=nnb_state,
+        diag_shift=DIAG_SHIFT,
+        clip_c=CLIP_C,
+        use_ntk=True, on_the_fly=True, mode="real",
     )
     nnb_trace = run_nnb_phase(nnb_driver, nnb_seconds, "nnb", LOG_EVERY_VMC)
 

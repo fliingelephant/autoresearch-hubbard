@@ -13,3 +13,4 @@ build/
 .ipynb_checkpoints/
 .claude/settings.local.json
 jax_cache/
+.claude/

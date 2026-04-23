@@ -21,8 +21,9 @@ from __future__ import annotations
 import time
 import jax
 import jax.numpy as jnp
-import numpy as np
 import netket as nk
+import numpy as np
+import optax
 
 jax.config.update("jax_enable_x64", True)
 
@@ -44,7 +45,6 @@ def main() -> None:
 
     n_iter = 300
     print(f"\n=== Running MARCH for {n_iter} iterations ===")
-    import optax
     gs = nk.driver.VMC_SR(
         ha, optax.sgd(0.05), variational_state=vs,
         diag_shift=0.1,

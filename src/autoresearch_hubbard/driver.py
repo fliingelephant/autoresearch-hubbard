@@ -15,10 +15,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import jax
 import jax.numpy as jnp
-from jax.flatten_util import ravel_pytree
+import optax
 
 import netket as nk
+from netket.utils import struct
 
 from autoresearch_hubbard.clip import clip_local_energies
 
@@ -28,6 +30,8 @@ class VMC_SR_clipped(nk.driver.VMC_SR):
 
     See :mod:`autoresearch_hubbard.clip` for the clipping specification.
     """
+
+    _clip_c: float = struct.field(pytree_node=False, serialize=False, default=5.0)
 
     def __init__(self, *args, clip_c: float = 5.0, **kwargs):
         super().__init__(*args, **kwargs)
@@ -49,6 +53,5 @@ class NormSchedule(nk.callbacks.AbstractCallback):
 
     def before_parameter_update(self, step, log_data, driver):
         bound = self.norm_bound_fn(step)
-        flat, unravel = ravel_pytree(driver._dp)
-        factor = jnp.minimum(1.0, bound / (jnp.linalg.norm(flat) + 1e-12))
-        driver._dp = unravel(flat * factor)
+        factor = jnp.minimum(1.0, bound / (optax.global_norm(driver._dp) + 1e-12))
+        driver._dp = jax.tree.map(lambda t: t * factor, driver._dp)

@@ -33,6 +33,7 @@ import time
 import jax
 import jax.numpy as jnp
 import netket as nk
+import numpy as np
 import optax
 
 from prepare import (
@@ -260,7 +261,7 @@ def main() -> None:
         show_progress=False,
         callback=[nk.callbacks.Timeout(march_seconds), NormSchedule(norm_bound)],
     )
-    march_trace = [float(x) for x in jnp.real(march_logger.data["Energy"]["Mean"])]
+    march_trace = np.real(march_logger.data["Energy"]["Mean"]).tolist()
 
     elapsed = time.perf_counter() - t_start
     final_energy = march_trace[-1] if march_trace else float("inf")

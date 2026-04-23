@@ -820,8 +820,8 @@ wheels = [
 
 [[package]]
 name = "netket"
-version = "0.1.dev3939+g8d2ac0a93"
-source = { git = "https://github.com/fliingelephant/netket.git?rev=main#8d2ac0a93c765d46304d335303051dfa6ae01e9b" }
+version = "0.1.dev3940+g19caa2776"
+source = { git = "https://github.com/fliingelephant/netket.git?rev=main#19caa2776245ff807b7f4eac0ceeef12bdf15170" }
 dependencies = [
     { name = "einops" },
     { name = "equinox" },

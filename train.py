@@ -44,7 +44,7 @@ from prepare import (
     verify_frozen_surface,
 )
 from autoresearch_hubbard.ansatz import NNB, SiTBackflow
-from autoresearch_hubbard.driver import run_march_phase
+from autoresearch_hubbard.driver import VMC_SR_clipped, NormSchedule
 from autoresearch_hubbard.pretrain import supervised_pretrain_step
 
 # ---------------------------------------------------------------------------
@@ -246,20 +246,21 @@ def main() -> None:
         sampler, sit, n_samples=N_SAMPLES, variables=sit_variables,
         seed=SEED + 2, sampler_seed=SEED + 2,
     )
-    march_trace = run_march_phase(
-        sit_state, hamiltonian,
-        seconds_budget=march_seconds,
-        learning_rate=LEARNING_RATE,
-        diag_shift=DIAG_SHIFT,
-        momentum=MOMENTUM,
-        moment_adaptive=MOMENT_ADAPTIVE,
-        beta=BETA,
+    march_driver = VMC_SR_clipped(
+        hamiltonian, optax.sgd(LEARNING_RATE), variational_state=sit_state,
+        diag_shift=DIAG_SHIFT, momentum=MOMENTUM,
+        moment_adaptive=MOMENT_ADAPTIVE, beta=BETA,
         clip_c=CLIP_C,
-        norm_bound_fn=norm_bound,
-        mode="complex",
-        log_every=LOG_EVERY_VMC,
-        phase_name="march",
+        use_ntk=True, on_the_fly=True, mode="complex",
     )
+    march_logger = nk.logging.RuntimeLog()
+    march_driver.run(
+        n_iter=10**9,  # upper bound; Timeout handles the real cap
+        out=march_logger,
+        show_progress=False,
+        callback=[nk.callbacks.Timeout(march_seconds), NormSchedule(norm_bound)],
+    )
+    march_trace = [float(x) for x in jnp.real(march_logger.data["Energy"]["Mean"])]
 
     elapsed = time.perf_counter() - t_start
     final_energy = march_trace[-1] if march_trace else float("inf")

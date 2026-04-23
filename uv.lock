@@ -61,7 +61,7 @@ requires-dist = [
     { name = "jax", extras = ["cpu"], marker = "extra == 'cpu'" },
     { name = "jax", extras = ["cuda13"], marker = "extra == 'cuda'" },
     { name = "matplotlib" },
-    { name = "netket", specifier = ">=3.22.0.dev3" },
+    { name = "netket", git = "https://github.com/fliingelephant/netket.git?rev=main" },
     { name = "numpy" },
     { name = "optax" },
     { name = "scipy" },
@@ -820,8 +820,8 @@ wheels = [
 
 [[package]]
 name = "netket"
-version = "3.22.0.dev3"
-source = { registry = "https://pypi.org/simple" }
+version = "0.1.dev3939+g8d2ac0a93"
+source = { git = "https://github.com/fliingelephant/netket.git?rev=main#8d2ac0a93c765d46304d335303051dfa6ae01e9b" }
 dependencies = [
     { name = "einops" },
     { name = "equinox" },
@@ -837,10 +837,6 @@ dependencies = [
     { name = "scipy" },
     { name = "sparse" },
     { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/18/7d/ed460db955620699deb03274fe048e9504fabce5ed689ed224999bfe3492/netket-3.22.0.dev3.tar.gz", hash = "sha256:7c5f4f97d0c8ef264974423d130a5cc23d1277198e47e09f05036b1578f666bb", size = 562695, upload-time = "2026-03-11T08:28:24.132Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/23/c94fdedb3f72d8fde6ec884cdd6213f556bf1209e47358562d2c0f96ed92/netket-3.22.0.dev3-py3-none-any.whl", hash = "sha256:5019b010503b9b6c8ca2563fe4a7e53087c8073e925e6432de19cb6990dbf853", size = 895760, upload-time = "2026-03-11T08:28:21.772Z" },
 ]
 
 [[package]]

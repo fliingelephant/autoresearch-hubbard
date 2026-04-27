@@ -35,6 +35,7 @@ import jax.numpy as jnp
 import netket as nk
 import numpy as np
 import optax
+from netket.utils import struct
 
 from prepare import (
     LATTICE_LX,
@@ -68,9 +69,15 @@ N_CHAINS = 128
 SWEEP_SIZE = max(round(2.5 * N_SITES), 1)
 N_SAMPLES = 4096
 
-# NNB warm-start (paper Table S5).
+# NNB warm-start (paper Table S5: Adam; here SGD+MinSR+clipping — the only
+# clipping-aware driver netket exposes today).
 NNB_HIDDEN_DIM = 256
 NNB_LR = 1e-4
+
+
+def nnb_schedule(step: int) -> float:
+    return NNB_LR / (1.0 + step / 1.0e4)
+
 
 # SiT transformer backflow (paper Table S7).
 D_MODEL = 256
@@ -91,9 +98,11 @@ BETA = 0.995                # β (MARCH second-moment decay)
 MOMENT_ADAPTIVE = True      # MARCH on top of SPRING
 CLIP_C = 5.0                # FermiNet-style local-energy clip
 
+
 # Norm-constraint schedule: 10^-1 * (1 + max(t-8000,0)/8000)^-1 (paper Table S7).
 def norm_bound(step: int) -> float:
     return 1e-1 / (1.0 + max(step - 8000, 0) / 8000.0)
+
 
 # Logging cadence.
 LOG_EVERY_VMC = 10
@@ -109,78 +118,60 @@ def _check_finite(value: float, phase: str, step: int, what: str) -> None:
         raise NaNError(f"{phase} step {step}: {what}={value} (training diverged)")
 
 
-def run_nnb_phase(driver, seconds_budget: float, phase_name: str, log_every: int) -> list[float]:
-    """Run NNB VMC (via nk.driver.VMC) until the deadline; first step warmup absorbs JIT."""
-    trace: list[float] = []
-    latest: dict[str, float] = {}
+class ProgressLogger(nk.callbacks.AbstractCallback):
+    """Per-step energy/variance print + NaN tripwire, shared by NNB and MARCH."""
 
-    def capture(_step, log_data, _driver):
+    name: str = struct.field(pytree_node=False, serialize=False)
+    log_every: int = struct.field(pytree_node=False, serialize=False)
+    _start: float = struct.field(pytree_node=False, serialize=False, default=0.0)
+
+    def __init__(self, name: str, log_every: int):
+        super().__init__()
+        self.name = name
+        self.log_every = log_every
+
+    def on_run_start(self, step, driver):
+        self._start = time.perf_counter()
+
+    def on_step_end(self, step, log_data, driver):
+        k = step + 1  # netket step is 0-based at on_step_end; show 1-based.
         energy = log_data["Energy"]
-        latest["energy"] = float(jnp.real(energy.mean))
-        latest["variance"] = float(jnp.real(energy.variance))
-        return True
-
-    t_warm = time.perf_counter()
-    driver.run(1, out=None, show_progress=False, callback=capture)
-    _check_finite(latest["energy"], phase_name, 1, "energy")
-    trace.append(latest["energy"])
-    print(
-        f"{phase_name} step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): "
-        f"energy={latest['energy']:.6f} variance={latest['variance']:.4f}",
-        flush=True,
-    )
-
-    deadline = time.perf_counter() + seconds_budget
-    step = 1
-    while time.perf_counter() < deadline:
-        driver.run(1, out=None, show_progress=False, callback=capture)
-        step += 1
-        _check_finite(latest["energy"], phase_name, step, "energy")
-        trace.append(latest["energy"])
-        if step % log_every == 0:
-            print(
-                f"{phase_name} step {step}: energy={latest['energy']:.6f} variance={latest['variance']:.4f}",
-                flush=True,
-            )
-    return trace
+        e = float(jnp.real(energy.mean))
+        _check_finite(e, self.name, k, "energy")
+        if k == 1 or k % self.log_every == 0:
+            v = float(jnp.real(energy.variance))
+            warm = f" (warmup, {time.perf_counter() - self._start:.1f}s)" if k == 1 else ""
+            print(f"{self.name} step {k}{warm}: energy={e:.6f} variance={v:.4f}", flush=True)
 
 
 def run_pretraining_phase(
-    params,
-    model,
-    configs: jax.Array,
-    targets: jax.Array,
-    seconds_budget: float,
-    learning_rate: float,
-    log_every: int,
+    params, sit_model, nnb_state, nnb_model,
+    seconds_budget: float, learning_rate: float, log_every: int, n_samples: int,
 ):
-    """Supervised pretrain of SiT orbitals against NNB targets (paper Eq. S28)."""
+    """Online supervised pretraining of SiT against NNB (paper §S.2, Eq. S28).
+
+    Each step resamples from the NNB Markov chain; targets are the NNB
+    backflow orbitals evaluated on those fresh configs.
+    """
     optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(params)
-
-    t_warm = time.perf_counter()
-    params, opt_state, loss = supervised_pretrain_step(
-        params, model, configs, targets, optimizer=optimizer, opt_state=opt_state,
-    )
-    loss_val = float(loss)
-    _check_finite(loss_val, "pretrain", 1, "loss")
-    print(
-        f"pretrain step 1 (warmup, {time.perf_counter() - t_warm:.1f}s): loss={loss_val:.6f}",
-        flush=True,
-    )
-
-    deadline = time.perf_counter() + seconds_budget
-    step = 1
-    while time.perf_counter() < deadline:
+    nnb_vars = nnb_state.variables
+    t0 = time.perf_counter()
+    deadline = t0 + seconds_budget
+    step = 0
+    while step == 0 or time.perf_counter() < deadline:
+        samples = nnb_state.sample(n_samples=n_samples, n_discard_per_chain=0)
+        configs = samples.reshape((-1, samples.shape[-1])).astype(DTYPE)
         params, opt_state, loss = supervised_pretrain_step(
-            params, model, configs, targets,
+            params, sit_model, nnb_vars, nnb_model, configs,
             optimizer=optimizer, opt_state=opt_state,
         )
         step += 1
-        if step % log_every == 0:
+        if step == 1 or step % log_every == 0:
             loss_val = float(loss)
             _check_finite(loss_val, "pretrain", step, "loss")
-            print(f"pretrain step {step}: loss={loss_val:.6f}", flush=True)
+            warm = f" (warmup, {time.perf_counter() - t0:.1f}s)" if step == 1 else ""
+            print(f"pretrain step {step}{warm}: loss={loss_val:.6f}", flush=True)
     return params, step
 
 
@@ -206,45 +197,37 @@ def main() -> None:
         hilbert, graph=graph, n_chains=N_CHAINS, sweep_size=SWEEP_SIZE, spin_symmetric=True,
     )
 
-    # Phase 1: NNB warm-start (paper supplementary §2).
+    # Phase 1: NNB warm-start (paper Table S5).
     print("=== Phase 1: NNB warm-start ===", flush=True)
     nnb = NNB(hilbert, hidden_dim=NNB_HIDDEN_DIM, param_dtype=DTYPE)
     nnb_state = nk.vqs.MCState(
         sampler, nnb, n_samples=N_SAMPLES, seed=SEED, sampler_seed=SEED
     )
-
-    def nnb_schedule(step):
-        return NNB_LR / (1.0 + step / 1.0e4)
-
-    # NNB warm-start via MinSR + clipping (paper Table S5 specifies Adam;
-    # we use MinSR as a natural-gradient substitute because VMC_SR_clipped
-    # is the only clean clipping-aware driver available in netket today).
     nnb_driver = VMC_SR_clipped(
-        hamiltonian,
-        optax.sgd(nnb_schedule),
+        hamiltonian, optax.sgd(nnb_schedule),
         variational_state=nnb_state,
-        diag_shift=DIAG_SHIFT,
-        clip_c=CLIP_C,
+        diag_shift=DIAG_SHIFT, clip_c=CLIP_C,
         use_ntk=True, on_the_fly=True, mode="real",
     )
-    nnb_trace = run_nnb_phase(nnb_driver, nnb_seconds, "nnb", LOG_EVERY_VMC)
-
-    # Phase 2: supervised pretraining of the SiT orbitals against the NNB ansatz.
-    print("=== Phase 2: supervised pretraining ===", flush=True)
-    samples = nnb_state.sample(n_samples=PRETRAIN_SAMPLES, n_discard_per_chain=0)
-    pretrain_configs = samples.reshape((-1, samples.shape[-1])).astype(DTYPE)
-    pretrain_targets = nnb.apply(
-        nnb_state.variables, pretrain_configs, method=nnb.backflow_orbitals
+    nnb_logger = nk.logging.RuntimeLog()
+    nnb_driver.run(
+        n_iter=10**9, out=nnb_logger, show_progress=False,
+        callback=[nk.callbacks.Timeout(nnb_seconds), ProgressLogger("nnb", LOG_EVERY_VMC)],
     )
+    nnb_trace = np.real(nnb_logger.data["Energy"]["Mean"]).tolist()
 
+    # Phase 2: online supervised pretraining of SiT against NNB (paper §S.2).
+    print("=== Phase 2: supervised pretraining ===", flush=True)
     sit = SiTBackflow(
         hilbert, d_model=D_MODEL, n_heads=N_HEADS, n_layers=N_LAYERS,
         n_determinants=N_DETERMINANTS, param_dtype=DTYPE,
     )
-    sit_variables = sit.init(jax.random.PRNGKey(SEED + 1), pretrain_configs)
+    init_samples = nnb_state.sample(n_samples=PRETRAIN_SAMPLES, n_discard_per_chain=0)
+    init_configs = init_samples.reshape((-1, init_samples.shape[-1])).astype(DTYPE)
+    sit_variables = sit.init(jax.random.PRNGKey(SEED + 1), init_configs)
     sit_variables, pretrain_steps = run_pretraining_phase(
-        sit_variables, sit, pretrain_configs, pretrain_targets,
-        pretrain_seconds, PRETRAIN_LR, LOG_EVERY_PRETRAIN,
+        sit_variables, sit, nnb_state, nnb,
+        pretrain_seconds, PRETRAIN_LR, LOG_EVERY_PRETRAIN, PRETRAIN_SAMPLES,
     )
 
     # Phase 3: MARCH VMC (paper Table S7).
@@ -262,10 +245,12 @@ def main() -> None:
     )
     march_logger = nk.logging.RuntimeLog()
     march_driver.run(
-        n_iter=10**9,  # upper bound; Timeout handles the real cap
-        out=march_logger,
-        show_progress=False,
-        callback=[nk.callbacks.Timeout(march_seconds), NormSchedule(norm_bound)],
+        n_iter=10**9, out=march_logger, show_progress=False,
+        callback=[
+            nk.callbacks.Timeout(march_seconds),
+            NormSchedule(norm_bound),
+            ProgressLogger("march", LOG_EVERY_VMC),
+        ],
     )
     march_trace = np.real(march_logger.data["Energy"]["Mean"]).tolist()
 

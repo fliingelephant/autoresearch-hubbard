@@ -16,18 +16,18 @@ def test_supervised_pretrain_step_reduces_orbital_mse():
 
     nnb = NNB(hilbert, hidden_dim=8)
     nnb_params = nnb.init(jax.random.PRNGKey(0), configs)
-    targets = nnb.apply(nnb_params, configs, method=NNB.backflow_orbitals)
 
     model = SiTBackflow(hilbert, d_model=8, n_heads=2, n_layers=1, n_determinants=2)
     params = model.init(jax.random.PRNGKey(1), configs)
     optimizer = optax.adam(3e-4)
     opt_state = optimizer.init(params)
 
-    loss_before = orbital_mse_loss(params, model, configs, targets)
+    loss_before = orbital_mse_loss(params, model, nnb_params, nnb, configs)
     new_params, _, loss = supervised_pretrain_step(
-        params, model, configs, targets, optimizer=optimizer, opt_state=opt_state,
+        params, model, nnb_params, nnb, configs,
+        optimizer=optimizer, opt_state=opt_state,
     )
-    loss_after = orbital_mse_loss(new_params, model, configs, targets)
+    loss_after = orbital_mse_loss(new_params, model, nnb_params, nnb, configs)
 
     assert loss <= loss_before
     assert loss_after <= loss_before

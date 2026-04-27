@@ -47,6 +47,8 @@ class NormSchedule(nk.callbacks.AbstractCallback):
     Reproduces the paper Table S7 norm-constraint schedule.
     """
 
+    norm_bound_fn: Callable[[int], float] = struct.field(pytree_node=False, serialize=False)
+
     def __init__(self, norm_bound_fn: Callable[[int], float]):
         super().__init__()
         self.norm_bound_fn = norm_bound_fn

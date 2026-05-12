@@ -147,6 +147,155 @@ class ExteriorBlock(nn.Module):
         return scalar_tokens, ext_tokens
 
 
+class CascadedExteriorGramBlock(nn.Module):
+    """Attention block with internal exterior projection and Gram-volume features."""
+
+    d_model: int
+    n_heads: int
+    n_groups: int
+    group_size: int
+    geom_dim: int
+    projection_channels: int
+    gram_eps: float = 1.0e-4
+    param_dtype: DType = jnp.float32
+
+    @nn.compact
+    def __call__(self, tokens: jax.Array) -> tuple[jax.Array, jax.Array]:
+        update = nn.MultiHeadDotProductAttention(
+            num_heads=self.n_heads,
+            qkv_features=self.d_model,
+            out_features=self.d_model,
+            param_dtype=self.param_dtype,
+        )(tokens)
+        tokens = tokens + update
+        tokens = tokens + nn.silu(
+            nn.Dense(self.d_model, param_dtype=self.param_dtype)(tokens)
+        )
+
+        query_scale = 1.0 / math.sqrt(self.d_model)
+        group_queries = self.param(
+            "group_queries",
+            nn.initializers.normal(stddev=query_scale),
+            (self.n_groups, self.group_size, self.d_model),
+            self.param_dtype,
+        )
+        logits = jnp.einsum("grd,bmd->bgrm", group_queries, tokens) * query_scale
+        weights = nn.softmax(logits, axis=-1)
+        pooled = jnp.einsum("bgrm,bmd->bgrd", weights, tokens)
+        vectors = nn.Dense(self.geom_dim, param_dtype=self.param_dtype)(pooled)
+        vectors = jnp.tanh(vectors)
+
+        dual_scale = 1.0 / math.sqrt(self.geom_dim)
+        dual_forms = self.param(
+            "dual_forms",
+            nn.initializers.normal(stddev=dual_scale),
+            (
+                self.n_groups,
+                self.projection_channels,
+                self.group_size,
+                self.geom_dim,
+            ),
+            self.param_dtype,
+        )
+        projection_matrix = jnp.einsum("bgid,gcjd->bgcij", vectors, dual_forms)
+        projection_features = jnp.linalg.det(projection_matrix)
+
+        gram = jnp.einsum("bgid,bgjd->bgij", vectors, vectors)
+        eye = jnp.eye(self.group_size, dtype=tokens.dtype)
+        _, log_volume_sq = jnp.linalg.slogdet(gram + self.gram_eps * eye)
+        gram_features = 0.5 * log_volume_sq
+
+        batch_size = tokens.shape[0]
+        invariant_features = jnp.concatenate(
+            [
+                projection_features.reshape(batch_size, -1),
+                gram_features.reshape(batch_size, -1),
+            ],
+            axis=-1,
+        )
+        invariant_hidden = nn.silu(
+            nn.Dense(self.d_model, param_dtype=self.param_dtype)(invariant_features)
+        )
+        invariant_update = nn.Dense(
+            self.d_model,
+            param_dtype=self.param_dtype,
+        )(invariant_hidden)
+        tokens = tokens + invariant_update[:, None, :]
+        tokens = tokens + nn.silu(
+            nn.Dense(self.d_model, param_dtype=self.param_dtype)(tokens)
+        )
+        return tokens, invariant_features
+
+
+class CascadedExteriorGramAmplitude(nn.Module):
+    """Cascaded attention with internal exterior projections and Gram volumes."""
+
+    hilbert: SpinOrbitalFermions
+    d_model: int = 32
+    n_heads: int = 4
+    n_layers: int = 2
+    n_groups: int = 8
+    group_size: int = 4
+    geom_dim: int = 8
+    projection_channels: int = 2
+    gram_eps: float = 1.0e-4
+    param_dtype: DType = jnp.float32
+
+    @property
+    def n_sites(self) -> int:
+        return self.hilbert.n_orbitals
+
+    @property
+    def n_modes(self) -> int:
+        return 2 * self.n_sites
+
+    def spin_orbital_tokens(self, configs: jax.Array) -> jax.Array:
+        flat_configs, batch_shape = _flatten_configs(jnp.asarray(configs, self.param_dtype))
+        return flat_configs.astype(jnp.int32).reshape(batch_shape + (self.n_modes,))
+
+    @nn.compact
+    def __call__(self, configs: jax.Array) -> jax.Array:
+        flat_configs, batch_shape = _flatten_configs(jnp.asarray(configs, self.param_dtype))
+        mode_tokens = self.spin_orbital_tokens(flat_configs).reshape((-1, self.n_modes))
+
+        tokens = nn.Embed(2, self.d_model, param_dtype=self.param_dtype)(mode_tokens)
+        mode_encoding = self.param(
+            "mode_encoding",
+            nn.initializers.normal(stddev=0.02),
+            (self.n_modes, self.d_model),
+            self.param_dtype,
+        )
+        tokens = tokens + mode_encoding[None, :, :]
+
+        invariant_features = None
+        for _ in range(self.n_layers):
+            tokens, invariant_features = CascadedExteriorGramBlock(
+                d_model=self.d_model,
+                n_heads=self.n_heads,
+                n_groups=self.n_groups,
+                group_size=self.group_size,
+                geom_dim=self.geom_dim,
+                projection_channels=self.projection_channels,
+                gram_eps=self.gram_eps,
+                param_dtype=self.param_dtype,
+            )(tokens)
+
+        summary = jnp.mean(tokens, axis=1)
+        if invariant_features is not None:
+            summary = jnp.concatenate([summary, invariant_features], axis=-1)
+        summary = nn.silu(nn.Dense(self.d_model, param_dtype=self.param_dtype)(summary))
+        base = nn.Dense(
+            2,
+            kernel_init=nn.initializers.normal(stddev=0.01),
+            param_dtype=self.param_dtype,
+        )(summary)
+        complex_dtype = jnp.promote_types(tokens.dtype, jnp.complex64)
+        logpsi = base[:, 0].astype(complex_dtype)
+        logpsi = logpsi + 1j * base[:, 1].astype(complex_dtype)
+
+        return logpsi.reshape(batch_shape)
+
+
 class ExteriorAmplitude(nn.Module):
     """Configuration-conditioned exterior circuit returning complex log amplitudes."""
 

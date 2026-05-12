@@ -6,7 +6,7 @@ import optax
 
 from exterior import model as exterior_model
 from exterior.algebra import blade_index, basis_blades, interior, wedge
-from exterior.model import ExteriorAmplitude
+from exterior.model import CascadedExteriorGramAmplitude, ExteriorAmplitude
 
 
 def test_wedge_has_fermionic_signs_for_basis_vectors():
@@ -93,6 +93,84 @@ def test_exterior_model_gradients_are_finite():
     configs = jnp.asarray(hilbert.all_states(), dtype=jnp.float32)
     model = ExteriorAmplitude(
         hilbert, d_model=8, n_heads=2, n_layers=1, ext_dim=3, ext_channels=4
+    )
+    variables = model.init(jax.random.PRNGKey(1), configs)
+
+    def loss_fn(params):
+        logpsi = model.apply({"params": params}, configs)
+        return jnp.mean(jnp.square(jnp.real(logpsi)) + jnp.square(jnp.imag(logpsi)))
+
+    loss, grads = jax.value_and_grad(loss_fn)(variables["params"])
+    leaves = jax.tree_util.tree_leaves(grads)
+
+    assert jnp.isfinite(loss)
+    assert all(jnp.all(jnp.isfinite(leaf)) for leaf in leaves)
+
+
+def test_cascaded_exterior_gram_model_uses_physical_spin_orbital_tokens():
+    hilbert = nk.hilbert.SpinOrbitalFermions(
+        n_orbitals=2, s=1 / 2, n_fermions_per_spin=(1, 1)
+    )
+    model = CascadedExteriorGramAmplitude(
+        hilbert,
+        d_model=8,
+        n_heads=2,
+        n_layers=1,
+        n_groups=2,
+        group_size=2,
+        geom_dim=3,
+        projection_channels=2,
+    )
+    configs = jnp.asarray([[0, 1, 1, 0]], dtype=jnp.float32)
+    variables = model.init(jax.random.PRNGKey(0), configs)
+    tokens = model.apply(
+        variables,
+        configs,
+        method=CascadedExteriorGramAmplitude.spin_orbital_tokens,
+    )
+
+    np.testing.assert_array_equal(tokens, jnp.asarray([[0, 1, 1, 0]], dtype=jnp.int32))
+
+
+def test_cascaded_exterior_gram_model_returns_finite_batch_log_amplitudes():
+    hilbert = nk.hilbert.SpinOrbitalFermions(
+        n_orbitals=2, s=1 / 2, n_fermions_per_spin=(1, 1)
+    )
+    configs = jnp.asarray(hilbert.all_states(), dtype=jnp.float32)
+    model = CascadedExteriorGramAmplitude(
+        hilbert,
+        d_model=8,
+        n_heads=2,
+        n_layers=1,
+        n_groups=2,
+        group_size=2,
+        geom_dim=3,
+        projection_channels=2,
+    )
+
+    variables = model.init(jax.random.PRNGKey(0), configs)
+    logpsi = model.apply(variables, configs)
+
+    assert "readout_form" not in variables["params"]
+    assert "dual_forms" in variables["params"]["CascadedExteriorGramBlock_0"]
+    assert logpsi.shape == (configs.shape[0],)
+    assert jnp.all(jnp.isfinite(logpsi))
+
+
+def test_cascaded_exterior_gram_model_gradients_are_finite():
+    hilbert = nk.hilbert.SpinOrbitalFermions(
+        n_orbitals=2, s=1 / 2, n_fermions_per_spin=(1, 1)
+    )
+    configs = jnp.asarray(hilbert.all_states(), dtype=jnp.float32)
+    model = CascadedExteriorGramAmplitude(
+        hilbert,
+        d_model=8,
+        n_heads=2,
+        n_layers=1,
+        n_groups=2,
+        group_size=2,
+        geom_dim=3,
+        projection_channels=2,
     )
     variables = model.init(jax.random.PRNGKey(1), configs)
 

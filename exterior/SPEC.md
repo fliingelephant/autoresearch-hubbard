@@ -25,6 +25,27 @@ Attention -> Exterior block -> Attention -> Exterior block -> ...
 The trainable parts decide what forms to construct, route, wedge, contract, and
 mix. The fixed algebra supplies the antisymmetric inductive bias.
 
+Current rewrite target:
+
+```text
+occupation tokens
+  -> scalar attention
+  -> compact virtual vector groups
+  -> internal wedge-projection and Gram-volume invariants
+  -> mix invariants back into tokens
+  -> scalar complex log psi(n)
+```
+
+Small determinants are allowed inside the block as exterior invariant
+evaluators, for example
+
+```text
+<v_1 wedge ... wedge v_k, Omega>
+det Gram(v_1, ..., v_k)
+```
+
+They are not used as the final determinant wavefunction head.
+
 ## Background
 
 The current ByteDance/Gu et al. style Hubbard NQS is backflow-like:
